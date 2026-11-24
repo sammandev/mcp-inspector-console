@@ -10,10 +10,12 @@ test('declares the pinned standalone workspace shape', async () => {
   assert.equal(manifest.packageManager, 'pnpm@12.21.0')
   assert.equal(manifest.engines?.node, '>=22.23.4')
 
-  for (const script of ['test', 'typecheck', 'build', 'dev']) {
-    assert.equal(typeof manifest.scripts?.[script], 'string', `missing ${script} script`)
-    assert.notEqual(manifest.scripts[script], '', `${script} script must not be empty`)
-  }
+  assert.deepEqual(manifest.scripts, {
+    test: 'node --test scripts/workspace-shape.test.mjs && pnpm -r --if-present test',
+    typecheck: 'pnpm -r --if-present typecheck',
+    build: 'pnpm -r --if-present build',
+    dev: 'pnpm -r --if-present dev',
+  })
 
   const workspace = await readFile(new URL('pnpm-workspace.yaml', root), 'utf8')
   assert.match(workspace, /^\s*- ['"]?apps\/\*['"]?\s*$/m)

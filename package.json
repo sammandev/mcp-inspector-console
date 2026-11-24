@@ -7,7 +7,7 @@
     "node": ">=22.23.4"
   },
   "scripts": {
-    "test": "pnpm -r --if-present test",
+    "test": "node --test scripts/workspace-shape.test.mjs && pnpm -r --if-present test",
     "typecheck": "pnpm -r --if-present typecheck",
     "build": "pnpm -r --if-present build",
     "dev": "pnpm -r --if-present dev"
