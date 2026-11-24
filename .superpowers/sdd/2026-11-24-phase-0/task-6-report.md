@@ -34,3 +34,33 @@ Base: `27ed25d3a18c42d8b0181c183a82ac623f045e14`
 ## Scope and constraints
 
 No upstream repository files were edited and no runtime MCP implementation was added. The provenance inventory does not claim unverified Official file-level licenses. mcp-use dependency-only records identify package names and are distinct from copied-source records.
+
+## Fix round 1
+
+### Addressed findings
+
+- Enforced runtime allowlists for upstream, classification, and license values; exact lowercase 40-character commits; trimmed nonblank strings; normalized relative POSIX paths; valid package names; and classification-specific fields.
+- Copied file and copied documentation records now require source/local paths, commit, classification, attribution, note, and a non-pending positive license.
+- Verifier now requires exactly one pin record per upstream and independently checks every record's required commit/classification.
+- Verifier runtime-validates parity IDs, feature/note text, aliases, status, owner phase, and source. It rejects duplicate IDs/coverage and enforces `blocked-license` for future Official runtime rows.
+- Added an independent capability requirements fixture derived from the design and machine-readable aliases for grouped rows, including protocol/network, subscriptions/logging, Apps/schema, and stdio/Streamable HTTP/SSE.
+- Expanded report tests to cover both drifted reports, missing reports, and read-only verification behavior.
+
+### RED
+
+Focused tests failed in 27 cases before implementation, covering missing IDs/aliases, permissive enum/path/license validation, duplicate/wrong upstream pins, invalid parity metadata, and missing capability coverage.
+
+Manual probes also demonstrated the original expected failures after being made explicit: malformed records and duplicate pins were rejected, and drift in each report independently failed verification.
+
+### GREEN
+
+- Focused tests: 47 passed, 0 failed.
+- `pnpm verify:provenance`: passed after deterministic regeneration.
+- Malformed-record probe: rejected 7 invalid fields.
+- Duplicate incompatible pin probe: rejected.
+- `pnpm test`: passed.
+- `pnpm typecheck`: passed.
+- `pnpm build`: passed with existing Vite annotation and chunk-size warnings.
+- `git diff --check`: passed.
+- `graphify update .`: completed; graph refreshed to 379 nodes / 558 edges.
+- Zero copied Official files, with future Official runtime still `blocked-license`.

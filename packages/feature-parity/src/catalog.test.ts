@@ -1,49 +1,31 @@
 import { describe, expect, test } from 'vitest'
 
 import { parityCatalog } from './catalog.js'
-
-const expectedFeatures = [
-  'Provenance and scaffold',
-  'Unified connection foundation',
-  'Chat',
-  'Tools',
-  'Prompts',
-  'Resources',
-  'Skills',
-  'Apps and widgets',
-  'Sampling, elicitation, and notifications',
-  'Saved requests and history',
-  'Multi-server UX and theme behavior',
-  'Protocol and network diagnostics',
-  'Process and stderr diagnostics',
-  'OAuth diagnostics',
-  'Roots',
-  'Tasks',
-  'Completions',
-  'Subscriptions and logging controls',
-  'Apps and schema conformance',
-  'Configuration import and export',
-  'Automation and CLI assertions',
-  'Load testing',
-] as const
+import { requiredCapabilities } from './requirements.test-fixture.js'
 
 describe('feature parity catalog', () => {
-  test('records every combined feature exactly once with a status, phase, and source', () => {
-    expect(parityCatalog.map(({ feature }) => feature)).toEqual(expectedFeatures)
-    expect(new Set(parityCatalog.map(({ feature }) => feature)).size).toBe(expectedFeatures.length)
+  test('has stable unique IDs and covers every independent design requirement', () => {
+    const ids = parityCatalog.map(({ id }) => id)
+    const coverage = parityCatalog.flatMap(({ aliases }) => aliases)
 
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(new Set(coverage)).toEqual(new Set(requiredCapabilities))
+  })
+
+  test('records every combined feature with valid machine-checkable metadata', () => {
     for (const item of parityCatalog) {
+      expect(item.id).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      expect(item.feature.trim()).toBe(item.feature)
       expect(['implemented', 'phase-placeholder', 'rebuild', 'non-applicable', 'blocked-license']).toContain(item.status)
       expect(item.ownerPhase).toMatch(/^phase-[0-4]$/)
-      expect(item.source).toMatch(/^(mcp-use|official-inspector|combined)$/)
-      expect(item.note.length).toBeGreaterThan(0)
+      expect(['mcp-use', 'official-inspector', 'combined']).toContain(item.source)
+      expect(item.note.trim().length).toBeGreaterThan(0)
+      expect(item.aliases.length).toBeGreaterThanOrEqual(1)
     }
   })
 
   test('keeps future Official runtime features blocked pending file-level approval', () => {
-    const futureOfficialRuntime = parityCatalog.filter(
-      ({ source }) => source === 'official-inspector',
-    )
+    const futureOfficialRuntime = parityCatalog.filter(({ source }) => source === 'official-inspector')
 
     expect(futureOfficialRuntime.length).toBeGreaterThan(0)
     expect(futureOfficialRuntime.every(({ status }) => status === 'blocked-license')).toBe(true)

@@ -4,32 +4,32 @@
 
 Reference revisions: mcp-use `8ff4b865e0e5712c66d5077e93392807daca9354`; Official Inspector `eb54b447e5377a7a18acaea9602fced5cb4c5b9f`.
 
-Each combined feature has exactly one status, owner phase, and upstream origin/source.
+Each combined feature has exactly one status, owner phase, and upstream origin/source. Capability aliases provide stable machine-readable coverage IDs.
 
-| Feature | Status | Owner phase | Source | Note |
-| --- | --- | --- | --- | --- |
-| Provenance and scaffold | implemented | phase-0 | combined | Typed inventories, pinned references, static shell, and generated reports. |
-| Unified connection foundation | phase-placeholder | phase-1 | combined | Connection profiles, one-session relay, and the local control channel are scheduled for Phase 1. |
-| Chat | phase-placeholder | phase-2 | mcp-use | Preserve the published mcp-use chat surface. |
-| Tools | phase-placeholder | phase-2 | mcp-use | Preserve published tools through the authoritative relay. |
-| Prompts | phase-placeholder | phase-2 | mcp-use | Preserve published prompts through the authoritative relay. |
-| Resources | phase-placeholder | phase-2 | mcp-use | Preserve published resources and resource templates. |
-| Skills | phase-placeholder | phase-2 | mcp-use | Preserve published skill capabilities. |
-| Apps and widgets | rebuild | phase-2 | mcp-use | Compose published renderer capabilities; do not copy the unexported shell. |
-| Sampling, elicitation, and notifications | phase-placeholder | phase-2 | mcp-use | Preserve approval workflows and notification UX. |
-| Saved requests and history | phase-placeholder | phase-2 | mcp-use | Preserve local history with redacted import and export. |
-| Multi-server UX and theme behavior | rebuild | phase-2 | mcp-use | Rebuild capability-aware navigation and shared mcp-use theme behavior. |
-| Protocol and network diagnostics | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
-| Process and stderr diagnostics | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
-| OAuth diagnostics | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
-| Roots | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
-| Tasks | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
-| Completions | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
-| Subscriptions and logging controls | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
-| Apps and schema conformance | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
-| Configuration import and export | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
-| Automation and CLI assertions | blocked-license | phase-4 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
-| Load testing | blocked-license | phase-4 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
+| ID | Feature | Capability aliases | Status | Owner phase | Source | Note |
+| --- | --- | --- | --- | --- | --- | --- |
+| provenance-scaffold | Provenance and scaffold | `provenance-scaffold` | implemented | phase-0 | combined | Typed inventories, pinned references, static shell, and generated reports. |
+| connection-foundation | Unified connection foundation | `connection-foundation` `transport-stdio` `transport-streamable-http` `transport-sse` | phase-placeholder | phase-1 | combined | Connection profiles, one-session relay, and local control channel for stdio, Streamable HTTP, and SSE. |
+| chat | Chat | `chat` | phase-placeholder | phase-2 | mcp-use | Preserve the published mcp-use chat surface. |
+| tools | Tools | `tools` | phase-placeholder | phase-2 | mcp-use | Preserve published tools through the authoritative relay. |
+| prompts | Prompts | `prompts` | phase-placeholder | phase-2 | mcp-use | Preserve published prompts through the authoritative relay. |
+| resources | Resources | `resources` | phase-placeholder | phase-2 | mcp-use | Preserve published resources and resource templates. |
+| skills | Skills | `skills` | phase-placeholder | phase-2 | mcp-use | Preserve published skill capabilities. |
+| apps-widgets | Apps and widgets | `apps-widgets` | rebuild | phase-2 | mcp-use | Compose published renderer capabilities; do not copy the unexported shell. |
+| server-workflows | Sampling, elicitation, and notifications | `sampling` `elicitation` `notifications` | phase-placeholder | phase-2 | mcp-use | Preserve approval workflows and notification UX. |
+| request-history | Saved requests and history | `saved-requests` `history` | phase-placeholder | phase-2 | mcp-use | Preserve local history with redacted import and export. |
+| multi-server-theme | Multi-server UX and theme behavior | `multi-server` `theme` | rebuild | phase-2 | mcp-use | Rebuild capability-aware navigation and shared mcp-use theme behavior. |
+| protocol-network-diagnostics | Protocol and network diagnostics | `protocol-transcript` `network-inspector` | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
+| process-stderr-diagnostics | Process and stderr diagnostics | `process-diagnostics` `stderr` | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
+| oauth | OAuth diagnostics | `oauth` | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
+| roots | Roots | `roots` | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
+| tasks | Tasks | `tasks` | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
+| completions | Completions | `completions` | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
+| subscriptions-logging | Subscriptions and logging controls | `subscriptions` `logging-controls` | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
+| apps-schema-conformance | Apps and schema conformance | `apps-metadata` `schema-conformance` | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
+| configuration-io | Configuration import and export | `config-import` `config-export` | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
+| cli-automation | Automation and CLI assertions | `cli-automation` | blocked-license | phase-4 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
+| load-testing | Load testing | `load-testing` | blocked-license | phase-4 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
 
 ## Status meanings
 
