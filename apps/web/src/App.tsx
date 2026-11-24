@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { THEME_STORAGE_KEY } from "./useProviderTheme.js";
 import type { UnifiedInspectorSession } from "@combined-mcp-inspector/contract";
 import { publishedExports } from "./mcp-use-exports.js";
 import { AppShell, type Destination } from "./components/AppShell.js";
@@ -29,12 +30,13 @@ const offlineSession: ContractSessionCapability = {
 
 export function App() {
   const [selected, setSelected] = useState("Connections");
+  const [themeVersion, setThemeVersion] = useState(0);
   const destination = destinations.find((item) => item.label === selected) ?? destinations[0];
   const ThemeProvider = publishedExports.ThemeProvider;
 
   return (
-    <ThemeProvider defaultTheme="light" storageKey="combined-inspector-theme">
-      <AppShell destinations={destinations} selected={selected} onSelect={setSelected}>
+    <ThemeProvider key={themeVersion} defaultTheme="light" storageKey={THEME_STORAGE_KEY}>
+      <AppShell destinations={destinations} selected={selected} onSelect={setSelected} onThemeChange={() => setThemeVersion((version) => version + 1)}>
         <div data-profile-id={offlineSession.profileId} data-session-id={offlineSession.sessionId}>
           <FeaturePlaceholder
             label={destination.label}

@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { Dialog } from "@base-ui/react/dialog";
 import { Menu, Moon, PlugZap, Search, Sun, X } from "lucide-react";
 import type { ReactNode } from "react";
 import type { PublishedExportName } from "../mcp-use-exports.js";
+import { useProviderTheme } from "../useProviderTheme.js";
 
 export interface Destination {
   label: string;
@@ -13,24 +15,25 @@ interface AppShellProps {
   destinations: readonly Destination[];
   selected: string;
   onSelect: (label: string) => void;
+  onThemeChange: () => void;
   children: ReactNode;
 }
 
-function ThemeButton() {
-  const [dark, setDark] = useState(false);
+function ThemeButton({ onThemeChange }: Pick<AppShellProps, "onThemeChange">) {
+  const { theme, setTheme } = useProviderTheme();
+  const nextTheme = theme === "dark" ? "light" : "dark";
 
   return (
     <button
       className="icon-button"
       type="button"
-      aria-label="Toggle dark theme"
+      aria-label={`Switch to ${nextTheme} theme`}
       onClick={() => {
-        const next = !dark;
-        setDark(next);
-        document.documentElement.classList.toggle("dark", next);
+        setTheme(nextTheme);
+        onThemeChange();
       }}
     >
-      {dark ? <Sun size={17} /> : <Moon size={17} />}
+      {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
     </button>
   );
 }
@@ -64,8 +67,10 @@ function Navigation({
   );
 }
 
-export function AppShell({ destinations, selected, onSelect, children }: AppShellProps) {
+export function AppShell({ destinations, selected, onSelect, onThemeChange, children }: AppShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const openerRef = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
 
   const selectDestination = (label: string) => {
     onSelect(label);
@@ -73,8 +78,9 @@ export function AppShell({ destinations, selected, onSelect, children }: AppShel
   };
 
   return (
-    <div className="app-shell">
-      <aside className="desktop-sidebar">
+    <Dialog.Root open={menuOpen} onOpenChange={setMenuOpen} modal>
+      <div className="app-shell" data-testid="app-content">
+        <aside className="desktop-sidebar">
         <div className="brand-lockup">
           <div className="brand-mark"><PlugZap size={20} /></div>
           <div><strong>Combined</strong><span>MCP Inspector</span></div>
@@ -88,7 +94,7 @@ export function AppShell({ destinations, selected, onSelect, children }: AppShel
 
       <div className="shell-main">
         <header className="topbar">
-          <button className="icon-button mobile-menu" type="button" aria-label="Open navigation" onClick={() => setMenuOpen(true)}>
+          <button ref={openerRef} className="icon-button mobile-menu" type="button" aria-label="Open navigation" onClick={() => setMenuOpen(true)}>
             <Menu size={18} />
           </button>
           <label className="connection-control">
@@ -99,11 +105,11 @@ export function AppShell({ destinations, selected, onSelect, children }: AppShel
           </label>
           <div className="topbar-actions">
             <span className="phase-badge">Phase 0</span>
-            <ThemeButton />
+            <ThemeButton onThemeChange={onThemeChange} />
           </div>
         </header>
 
-        <div className="mobile-statusbar" data-testid="mobile-navigation" aria-label="Mobile navigation controls">
+        <div className="mobile-statusbar" data-testid="mobile-status" aria-label="Mobile status">
           <span><span className="status-dot" /> Offline scaffold</span>
           <span>Phase 0</span>
         </div>
@@ -131,16 +137,39 @@ export function AppShell({ destinations, selected, onSelect, children }: AppShel
             </aside>
           </div>
         </main>
-      </div>
-
-      {menuOpen && (
-        <div className="mobile-overlay" role="presentation" onMouseDown={() => setMenuOpen(false)}>
-          <aside className="mobile-drawer" role="dialog" aria-modal="true" aria-label="Inspector navigation" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="drawer-heading"><strong>Navigate</strong><button className="icon-button" type="button" aria-label="Close navigation" onClick={() => setMenuOpen(false)}><X size={18} /></button></div>
-            <Navigation destinations={destinations} selected={selected} onSelect={selectDestination} mobile />
-          </aside>
         </div>
-      )}
-    </div>
+
+        <Dialog.Portal>
+          <Dialog.Backdrop className="mobile-overlay" />
+          <Dialog.Popup
+            className="mobile-drawer"
+            aria-modal="true"
+            initialFocus={closeRef}
+            finalFocus={openerRef}
+            onKeyDown={(event) => {
+              if (event.key !== "Tab") return;
+              const focusable = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("button:not([disabled]), [href], [tabindex]:not([tabindex='-1'])"));
+              const first = focusable[0];
+              const last = focusable.at(-1);
+              if (event.shiftKey && document.activeElement === first && last) {
+                event.preventDefault();
+                last.focus();
+              } else if (!event.shiftKey && document.activeElement === last && first) {
+                event.preventDefault();
+                first.focus();
+              }
+            }}
+          >
+            <div className="drawer-heading">
+              <Dialog.Title render={<strong />}>Navigate</Dialog.Title>
+              <Dialog.Close ref={closeRef} className="icon-button" aria-label="Close navigation">
+                <X size={18} />
+              </Dialog.Close>
+            </div>
+            <Navigation destinations={destinations} selected={selected} onSelect={selectDestination} mobile />
+          </Dialog.Popup>
+        </Dialog.Portal>
+      </div>
+    </Dialog.Root>
   );
 }

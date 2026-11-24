@@ -1,14 +1,21 @@
 {
   "0": "types.ts",
-  "1": "web/package.json",
-  "2": "workspace-shape.test.mjs",
+  "1": "dependencies",
+  "2": "devDependencies",
   "3": "compilerOptions",
   "4": "App.tsx",
   "5": "package.json",
   "6": "app.ts",
   "7": "gateway/package.json",
   "8": "inspector-contract/package.json",
-  "9": "consumer.ts",
+  "9": "web/package.json",
   "10": "pnpm-workspace.yaml",
-  "11": "Combined MCP Inspector"
+  "11": "Combined MCP Inspector",
+  "12": "@tailwindcss/vite",
+  "13": "scripts",
+  "14": "tailwindcss",
+  "15": "@combined-mcp-inspector/contract@workspace:*",
+  "16": "lucide-react",
+  "17": "motion@12.34.2",
+  "18": "sonner@2.0.7"
 }
