@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "test": "vitest run src/mcp-use-exports.test.ts",
+    "test": "vitest run src/mcp-use-exports.test.ts src/App.test.tsx",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@base-ui/react": "1.6.0",
+    "@combined-mcp-inspector/contract": "workspace:*",
     "@mcp-use/agent": "2.0.27",
     "@mcp-use/client": "2.4.6",
     "@mcp-use/inspector": "20.3.33",

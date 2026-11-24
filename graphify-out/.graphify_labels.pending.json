@@ -1,0 +1,14 @@
+{
+  "0": "types.ts",
+  "1": "web/package.json",
+  "2": "workspace-shape.test.mjs",
+  "3": "compilerOptions",
+  "4": "App.tsx",
+  "5": "package.json",
+  "6": "app.ts",
+  "7": "gateway/package.json",
+  "8": "inspector-contract/package.json",
+  "9": "consumer.ts",
+  "10": "pnpm-workspace.yaml",
+  "11": "Combined MCP Inspector"
+}

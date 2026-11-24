@@ -13,6 +13,7 @@
     "dev": "pnpm -r --if-present dev"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.1",
     "typescript": "5.9.3",
     "vitest": "4.1.12"
   }
