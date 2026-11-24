@@ -6,7 +6,7 @@ This inventory is intentionally limited to material actually consumed or copied 
 
 The project consumes `@mcp-use/inspector`, `@mcp-use/client`, and `@mcp-use/agent` as pinned published dependencies at the reference revision `8ff4b865e0e5712c66d5077e93392807daca9354`. No mcp-use source file is copied into this repository.
 
-Copyright (c) mcp-use contributors.
+Copyright (c) mcp-use contributors. Package-license verification note: the Phase 0 verifier checks the repository pin, dependency classification, and required notice presence; distribution still requires confirming the pinned package archives' LICENSE files match this notice.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 

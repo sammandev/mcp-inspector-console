@@ -110,6 +110,18 @@ test('Windows taskkill failure rejects cleanup', async () => {
   await assert.rejects(stack.stop(0), /taskkill failed/)
 })
 
+test('Windows termination timeout is fatal even for a requested stop', async () => {
+  const { adapter, log } = lifecycleHarness({
+    platform: 'win32',
+    taskkill: async () => {},
+    waitForExit: async () => false,
+  })
+  const stack = await runDev({ adapter })
+
+  await assert.rejects(stack.stop(0), /did not exit/i)
+  assert.ok(log.some(([event, code]) => event === 'exit' && code === 1))
+})
+
 test('gateway exit in readiness-to-web handoff prevents web spawn and rejects', async () => {
   const state = lifecycleHarness()
   state.adapter.afterReadiness = async () => {

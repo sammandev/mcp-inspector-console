@@ -59,16 +59,23 @@ describe('upstream provenance manifest', () => {
     ]))
   })
 
-  test('validates optional paths on reference-only records', () => {
-    expect(validateManifest([{
+  test('requires reference-only records to identify the repository or revision source', () => {
+    const valid = {
       upstream: 'official-inspector',
       commit: 'eb54b447e5377a7a18acaea9602fced5cb4c5b9f',
       classification: 'reference-only',
-      sourcePath: '../invalid',
+      repository: 'modelcontextprotocol/inspector',
       attribution: 'Official MCP Inspector contributors',
       license: 'pending',
       note: 'Reference only.',
-    }])).toEqual(expect.arrayContaining([expect.objectContaining({ field: 'sourcePath' })]))
+    }
+    expect(validateManifest([valid])).toEqual([])
+    expect(validateManifest([{ ...valid, repository: undefined }])).toEqual(expect.arrayContaining([
+      expect.objectContaining({ field: 'repository' }),
+    ]))
+    expect(validateManifest([{ ...valid, repository: ' repository ' }])).toEqual(expect.arrayContaining([
+      expect.objectContaining({ field: 'repository' }),
+    ]))
   })
 
   test('rejects package references that are blank, malformed, or have copied paths', () => {

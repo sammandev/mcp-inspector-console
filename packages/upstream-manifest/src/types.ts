@@ -17,6 +17,7 @@ export interface UpstreamRecord {
   sourcePath?: string
   localPath?: string
   packageNames?: string[]
+  repository?: string
   note: string
 }
 

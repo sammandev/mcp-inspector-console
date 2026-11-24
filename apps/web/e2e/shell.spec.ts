@@ -84,6 +84,25 @@ test("mobile navigation enumerates destinations and is an accessible modal", asy
   expect(external).toEqual([]);
 });
 
+test("gateway proxy enforces browser origin while allowing local tooling", async ({ request, page }) => {
+  const sameOrigin = await page.goto("/");
+  expect(sameOrigin?.ok()).toBe(true);
+  const allowed = await page.evaluate(async () => {
+    const response = await fetch("/gateway/api/version");
+    return { status: response.status, body: await response.json() };
+  });
+  expect(allowed.status).toBe(200);
+  expect(allowed.body).toEqual({ version: "0.0.0" });
+
+  const localTool = await request.get("/gateway/api/version", { headers: { Origin: undefined as never } });
+  expect(localTool.status()).toBe(200);
+
+  const crossOrigin = await request.get("/gateway/api/version", {
+    headers: { Origin: "http://127.0.0.1:9999", "Sec-Fetch-Site": "cross-site" },
+  });
+  expect(crossOrigin.status()).toBe(403);
+});
+
 test("theme toggles through provider state and persists across reload with mcp-use tokens", async ({ page }) => {
   const external = guardNetwork(page);
   await page.goto("/");

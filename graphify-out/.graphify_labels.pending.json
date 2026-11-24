@@ -13,17 +13,16 @@
   "11": "Combined MCP Inspector",
   "12": "@tailwindcss/vite",
   "13": "scripts",
+  "14": "consumer.ts",
   "15": "dev-runner.mjs",
   "16": "verifier.ts",
   "17": "feature-parity/package.json",
   "18": "upstream-manifest/package.json",
   "19": "Third-party notices",
   "20": "Feature parity",
+  "21": "class-variance-authority@0.7.1",
   "22": "Task 6 report: parity and provenance inventories",
-  "23": "@combined-mcp-inspector/contract@workspace:*",
+  "23": "@mcp-use/client@2.4.6",
   "24": "react-resizable-panels@4.6.4",
-  "25": "upstream-provenance.md",
-  "26": "@mcp-use/inspector",
-  "27": "motion@12.34.2",
-  "28": "sonner@2.0.7"
+  "25": "upstream-provenance.md"
 }

@@ -14,7 +14,7 @@ export const upstreamManifest = [
     upstream: 'official-inspector',
     commit: 'eb54b447e5377a7a18acaea9602fced5cb4c5b9f',
     classification: 'reference-only',
-    sourcePath: 'repository revision',
+    repository: 'modelcontextprotocol/inspector',
     attribution: 'Official MCP Inspector contributors',
     license: 'pending',
     note: 'Behavioral reference only. No Official Inspector files are copied; future runtime code remains blocked pending file-level legal approval.',

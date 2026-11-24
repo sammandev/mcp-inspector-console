@@ -6,7 +6,7 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
-    "test": "vitest run src/mcp-use-exports.test.ts src/App.test.tsx",
+    "test": "vitest run src/mcp-use-exports.test.ts src/App.test.tsx src/vite-proxy-policy.test.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

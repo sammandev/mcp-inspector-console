@@ -53,6 +53,7 @@ export function validateManifest(records: readonly unknown[]): ValidationError[]
     }
 
     if (record.classification === 'reference-only') {
+      if (!nonBlank(record.repository)) errors.push({ index, field: 'repository', message: 'repository must identify the reference source' })
       if (record.packageNames !== undefined) errors.push({ index, field: 'packageNames', message: 'packageNames is invalid for reference-only records' })
       if (record.localPath !== undefined) errors.push({ index, field: 'localPath', message: 'localPath is invalid for reference-only records' })
       if (record.sourcePath !== undefined && !validPath(record.sourcePath)) {

@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.dev.json && node .dev-dist/dev.js",
-    "test": "vitest run src/config.test.ts src/app.test.ts",
+    "test": "vitest run src/config.test.ts src/app.test.ts src/dev-server.test.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
