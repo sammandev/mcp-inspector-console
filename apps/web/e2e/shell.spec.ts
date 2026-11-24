@@ -9,7 +9,7 @@ function guardNetwork(page: Page) {
   const external: string[] = [];
   void page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
-    if (url.protocol !== "data:" && url.protocol !== "blob:" && url.origin !== "http://127.0.0.1:4173") {
+    if (url.protocol !== "data:" && url.protocol !== "blob:" && url.origin !== "http://127.0.0.1:4273") {
       external.push(route.request().url());
       await route.abort("blockedbyclient");
       return;

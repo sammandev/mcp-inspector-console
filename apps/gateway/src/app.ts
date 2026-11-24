@@ -29,7 +29,10 @@ function bearerTokenMatches(header: string | undefined, expected: string): boole
 export function createGatewayApp(config: GatewayConfig): Hono {
   const app = new Hono()
 
-  app.get('/health', (context) => context.text('ok'))
+  app.get('/health', (context) => context.json({
+    service: 'combined-mcp-inspector-gateway',
+    instanceId: process.env.GATEWAY_INSTANCE_ID ?? '',
+  }))
 
   app.use('/api/*', async (context, next) => {
     if (!bearerTokenMatches(context.req.header('Authorization'), config.token)) {

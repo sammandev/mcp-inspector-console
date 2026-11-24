@@ -20,9 +20,9 @@ test('declares the pinned standalone workspace shape and runnable commands', asy
   assert.equal(manifest.packageManager, 'pnpm@12.21.0')
   assert.equal(manifest.engines?.node, '>=22.23.4')
   assert.equal(manifest.scripts.dev, 'node scripts/dev.mjs')
-  assert.equal(manifest.scripts.test, 'node --test scripts/workspace-shape.test.mjs && pnpm -r --if-present test')
+  assert.equal(manifest.scripts.test, 'node --test scripts/workspace-shape.test.mjs scripts/dev-runner.test.mjs && pnpm -r --if-present test')
   assert.equal(manifest.scripts.typecheck, 'pnpm -r --if-present typecheck')
-  assert.equal(manifest.scripts.build, 'pnpm -r --if-present build')
+  assert.equal(manifest.scripts.build, 'node scripts/build.mjs')
   assert.equal(manifest.scripts['test:e2e'], 'playwright test')
   assert.equal(
     manifest.scripts['verify:phase-0'],
@@ -40,16 +40,14 @@ test('declares the pinned standalone workspace shape and runnable commands', asy
   assert.match(workspace, /^\s*- ['"]?packages\/\*['"]?\s*$/m)
 })
 
-test('development runner starts a loopback gateway before passing config to Vite', async () => {
-  const source = await readFile(new URL('dev.mjs', import.meta.url), 'utf8')
+test('Playwright owns isolated loopback ports and excludes the browser token', async () => {
+  const config = await readFile(new URL('../playwright.config.ts', import.meta.url), 'utf8')
+  const webConfig = await readFile(new URL('apps/web/vite.config.ts', root), 'utf8')
 
-  assert.match(source, /127\.0\.0\.1/)
-  assert.match(source, /randomBytes/)
-  assert.match(source, /GATEWAY_HOST/)
-  assert.match(source, /GATEWAY_TOKEN/)
-  assert.match(source, /VITE_GATEWAY_URL/)
-  assert.match(source, /VITE_GATEWAY_TOKEN/)
-  assert.match(source, /\/health/)
-  assert.ok(source.indexOf('/health') < source.indexOf('startWeb'), 'health must be awaited before web startup')
-  assert.doesNotMatch(source, /console\.(?:log|info|debug).*token|\$\{token\}/i)
+  assert.match(config, /3101/)
+  assert.match(config, /4273/)
+  assert.match(config, /DEV_GATEWAY_PORT/)
+  assert.match(config, /DEV_WEB_PORT/)
+  assert.doesNotMatch(webConfig, /VITE_GATEWAY_TOKEN/)
+  assert.match(webConfig, /GATEWAY_TOKEN/)
 })

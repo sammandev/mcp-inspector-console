@@ -14,7 +14,10 @@ describe('gateway routes', () => {
     const response = await authenticatedApp().request('/health')
 
     expect(response.status).toBe(200)
-    expect(await response.text()).toBe('ok')
+    expect(await response.json()).toEqual({
+      service: 'combined-mcp-inspector-gateway',
+      instanceId: '',
+    })
   })
 
   it.each(['/api/version', '/api/future-control-route'])(

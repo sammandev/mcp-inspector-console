@@ -1,17 +1,17 @@
 # Graph Report - combined-mcp-inspector  (2026-11-24)
 
 ## Corpus Check
-- 59 files · ~10,722 words
+- 62 files · ~11,840 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 3 file(s) not represented in the graph (top: (none) 2, .css 1)
 
 ## Summary
-- 414 nodes · 598 edges · 29 communities (22 shown, 7 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 5 edges (avg confidence: 0.87)
+- 425 nodes · 620 edges · 28 communities (21 shown, 7 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 7 edges (avg confidence: 0.86)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `6844eef2`
+- Built from commit: `4abbf066`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -31,13 +31,12 @@
 - @tailwindcss/vite
 - scripts
 - validate.ts
-- dev.mjs
+- dev-runner.mjs
 - verifier.ts
 - feature-parity/package.json
 - upstream-manifest/package.json
 - Third-party notices
 - Feature parity
-- Task 5 Shell Implementation Plan
 - Task 6 report: parity and provenance inventories
 - @combined-mcp-inspector/contract@workspace:*
 - react-resizable-panels@4.6.4
@@ -53,10 +52,10 @@
 4. `scripts` - 9 edges
 5. `validateManifest()` - 7 edges
 6. `generateReports()` - 7 edges
-7. `react` - 6 edges
-8. `useProviderTheme()` - 6 edges
+7. `runDev()` - 6 edges
+8. `SessionDiagnostics` - 6 edges
 9. `SessionLifecycle` - 6 edges
-10. `SessionDiagnostics` - 6 edges
+10. `useProviderTheme()` - 6 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `Task 1: Static shell behavior and verification` --references--> `UnifiedInspectorSession`  [INFERRED]
@@ -67,17 +66,17 @@
   packages/upstream-manifest/src/verifier.ts → packages/upstream-manifest/src/validate.ts
 - `reportsFor()` --calls--> `generateReports()`  [EXTRACTED]
   packages/upstream-manifest/src/verifier.test.ts → packages/upstream-manifest/src/verifier.ts
-- `authenticatedApp()` --calls--> `createGatewayApp()`  [EXTRACTED]
-  apps/gateway/src/app.test.ts → apps/gateway/src/app.ts
+- `ParityItem` --references--> `RequiredCapability`  [EXTRACTED]
+  packages/feature-parity/src/catalog.ts → packages/feature-parity/src/requirements.test-fixture.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (29 total, 7 thin omitted)
+## Communities (28 total, 7 thin omitted)
 
 ### Community 0 - "types.ts"
-Cohesion: 0.06
-Nodes (39): GatewayVersion, Task 1: Static shell behavior and verification, SessionDiagnostics, SessionLifecycle, SessionOperations, SessionSubscriptions, UnifiedInspectorSession, AuthState (+31 more)
+Cohesion: 0.05
+Nodes (42): GatewayVersion, Global Constraints, Review Focus, Task 1: Static shell behavior and verification, Task 5 Shell Implementation Plan, SessionDiagnostics, SessionLifecycle, SessionOperations (+34 more)
 
 ### Community 1 - "dependencies"
 Cohesion: 0.12
@@ -135,12 +134,12 @@ Nodes (5): scripts, build, dev, test, typecheck
 Cohesion: 0.17
 Nodes (17): upstreamManifest, LicenseClassification, SourceClassification, Upstream, UpstreamRecord, ValidationError, classificationAllowlist, copiedFields (+9 more)
 
-### Community 15 - "dev.mjs"
-Cohesion: 0.21
-Nodes (8): children, exitCode(), gateway, start(), startWeb(), stop(), token, watch()
+### Community 15 - "dev-runner.mjs"
+Cohesion: 0.11
+Nodes (12): assertion, env, result, childExitCode(), defaultAdapter(), defaultTaskkill(), defaultWaitForExit(), hasExited() (+4 more)
 
 ### Community 16 - "verifier.ts"
-Cohesion: 0.09
+Cohesion: 0.11
 Nodes (23): expectedExports, FeatureSource, featureSources, OwnerPhase, ownerPhases, parityCatalog, ParityItem, ParityStatus (+15 more)
 
 ### Community 17 - "feature-parity/package.json"
@@ -155,10 +154,6 @@ Nodes (11): engines, node, exports, name, private, scripts, test, typecheck (+3 
 Cohesion: 0.50
 Nodes (3): mcp-use packages (MIT), Official MCP Inspector, Third-party notices
 
-### Community 21 - "Task 5 Shell Implementation Plan"
-Cohesion: 0.50
-Nodes (3): Global Constraints, Review Focus, Task 5 Shell Implementation Plan
-
 ### Community 22 - "Task 6 report: parity and provenance inventories"
 Cohesion: 0.18
 Nodes (10): Addressed findings, Fix round 1, GREEN, GREEN, Implemented, RED, RED, Scope and constraints (+2 more)
@@ -170,15 +165,15 @@ Nodes (10): Addressed findings, Fix round 1, GREEN, GREEN, Implemented, RED, RED
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `vitest` connect `app.ts` to `types.ts`, `App.tsx`, `package.json`, `validate.ts`, `verifier.ts`?**
-  _High betweenness centrality (0.222) - this node is a cross-community bridge._
+  _High betweenness centrality (0.211) - this node is a cross-community bridge._
 - **Should `types.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.060496067755595885 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05499735589635114 - nodes in this community are weakly interconnected._
 - **Why does `react` connect `App.tsx` to `web/package.json`, `dependencies`?**
-  _High betweenness centrality (0.069) - this node is a cross-community bridge._
+  _High betweenness centrality (0.067) - this node is a cross-community bridge._
 - **Should `dependencies` be split into smaller, more focused modules?**
   _Cohesion score 0.125 - nodes in this community are weakly interconnected._
 - **Why does `hono` connect `gateway/package.json` to `app.ts`?**
-  _High betweenness centrality (0.063) - this node is a cross-community bridge._
+  _High betweenness centrality (0.062) - this node is a cross-community bridge._
 - **Should `devDependencies` be split into smaller, more focused modules?**
   _Cohesion score 0.125 - nodes in this community are weakly interconnected._
 - **Should `compilerOptions` be split into smaller, more focused modules?**
