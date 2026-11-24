@@ -17,10 +17,10 @@ const VERSION: GatewayVersion = {
 function bearerTokenMatches(header: string | undefined, expected: string): boolean {
   if (expected.length === 0 || header === undefined) return false
 
-  const prefix = 'Bearer '
-  if (!header.startsWith(prefix)) return false
+  const match = /^Bearer ([\x21-\x7e]+)$/.exec(header)
+  if (match === null) return false
 
-  const actualDigest = createHash('sha256').update(header.slice(prefix.length)).digest()
+  const actualDigest = createHash('sha256').update(match[1]).digest()
   const expectedDigest = createHash('sha256').update(expected).digest()
 
   return timingSafeEqual(actualDigest, expectedDigest)
@@ -31,13 +31,15 @@ export function createGatewayApp(config: GatewayConfig): Hono {
 
   app.get('/health', (context) => context.text('ok'))
 
-  app.get('/api/version', (context) => {
+  app.use('/api/*', async (context, next) => {
     if (!bearerTokenMatches(context.req.header('Authorization'), config.token)) {
       return context.json({ error: 'Unauthorized' }, 401)
     }
 
-    return context.json({ version: VERSION.version })
+    await next()
   })
+
+  app.get('/api/version', (context) => context.json({ version: VERSION.version }))
 
   return app
 }
