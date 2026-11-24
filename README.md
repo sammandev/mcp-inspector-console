@@ -1,6 +1,63 @@
 # Combined MCP Inspector
 
-Standalone pnpm workspace for the combined MCP inspector implementation.
+Standalone pnpm workspace for a combined MCP Inspector. It serves the mcp-use
+Inspector UI/UX at `/mcp/inspector` and integrates Official MCP Inspector
+workflows into four focused destinations in the same interface and styling.
+The original workspace scaffold remains at `/workspace`.
+
+## What is included
+
+- **Native mcp-use workflows:** tools, prompts, resources, chat, skills, MCP
+  Apps and widgets, sampling, elicitation, notifications, saved requests,
+  history, multi-server navigation, and themes. They remain the foundation of
+  the UI. The attributed fork of the MIT mcp-use Inspector client is in
+  `apps/web/vendor/mcp-use`; modified source files are listed in its manifest
+  and marked `Modified for the combined Inspector:`.
+- **Protocol:** raw and batched JSON-RPC requests, pagination, filterable
+  traffic and request history, plus redacted Network and Console diagnostics.
+- **Auth:** protected-resource and authorization-server discovery,
+  authentication actions, masked tokens and JWT claims, and token revocation.
+- **Client:** validated Roots and Tasks workflows on the selected connection.
+- **Diagnostics:** local sessions and stderr, redacted configuration import and
+  export, explicit stdio launch with `cwd`, load testing, and CLI automation.
+- **Native-tab integrations:** Tools includes run history, replay/edit/diff,
+  output validation, schema lint, and MCP App metadata checks; Prompts and Resources
+  provide contextual completions; Resources owns subscriptions; Notifications
+  owns log filtering, `logging/setLevel`, and export; Skills supports
+  verification; Connection Settings and Server Metadata remain canonical for
+  server-specific options and server identity/diagnostics. Network log limits
+  are scoped by the selected server URL. The Dashboard remains the sole
+  server-management surface.
+- These workflows are reimplemented with the MCP SDK on the selected mcp-use
+  connection; no Official Inspector code is copied.
+- **Not reimplemented:** Official transport-level options that the mcp-use
+  connector does not expose: a cookie jar, suppressing the notification
+  stream, enterprise IdP/step-up authorization, OAuth endpoint overrides,
+  per-request log levels and server reordering. Request `_meta` can be sent in
+  Protocol params, and mcp-use refreshes lists on `list_changed` itself.
+- **stdio servers:** import a configuration with a `command` profile in
+  Diagnostics and launch it explicitly. A loopback-only relay at
+  `/mcp/inspector/api/local` spawns the process (at most 8 at a time) and
+  bridges it to the mcp-use client. Only launch commands you trust.
+- **CLI:** `pnpm inspect` runs MCP methods headlessly for scripts and CI.
+
+## CLI
+
+```text
+pnpm inspect --url http://localhost:3000/mcp --method tools/list
+pnpm inspect --config mcp.json --server audit --method tools/list
+pnpm inspect --url http://localhost:3000/mcp --method ping --expect "{}"
+pnpm inspect --config mcp.json --list-servers
+pnpm inspect --url http://localhost:3000/mcp --method tools/list --format text --output-file tools.txt
+pnpm inspect --url http://localhost:3000/mcp --method ping --load 50 --concurrency 5 --max-p95-ms 200 --max-failures 0
+```
+
+Configuration files accept JSON or YAML with an `mcpServers` mapping of
+HTTP profiles (`url`, optional `headers`) or stdio profiles (`command`,
+optional `args`, `env` and `cwd`), or a VS Code `servers` mapping. Keep credentials in local configuration files
+rather than shell history. CLI requests time out after 30 seconds, redact
+credential fields in output, close the client, and exit nonzero on errors
+or an unmet exact-JSON assertion. `--transport sse` selects legacy SSE.
 
 ## Prerequisites
 
@@ -21,12 +78,57 @@ pnpm verify:provenance
 pnpm verify:phase-0
 ```
 
-`pnpm dev` starts the gateway at `http://127.0.0.1:3001`, validates its public service/instance readiness identity, and only then starts Vite at `http://127.0.0.1:4173`. Each run generates a random ephemeral bearer token and non-secret instance ID in memory. The token is sent to the gateway and Vite's server process only; Vite injects it into its local `/gateway` proxy, and browser bundles never receive a `VITE_` token variable. Tokens and instance IDs are not printed or persisted.
+`pnpm dev` starts the gateway at `http://127.0.0.1:3001`, validates its public service/instance readiness identity, and only then starts Vite at `http://127.0.0.1:4173`. Open [the Inspector](http://127.0.0.1:4173/mcp/inspector); the root URL redirects there. To connect to the example server from another mcp-use project, open:
+
+```text
+http://127.0.0.1:4173/mcp/inspector?server=http%3A%2F%2Flocalhost%3A3000%2Fmcp
+```
+
+Without a `server` parameter, no default server is configured. The Inspector
+can still restore connections saved in browser storage. Select a connected
+server and open **Protocol**, **Auth**, **Client**, or **Diagnostics** for the
+cross-cutting workflows; `?tab=inspector` remains an alias for **Protocol**.
+Features requiring a provider, server capability, or other service still need
+that service to be configured.
+
+The local Inspector proxy supports the upstream HTTP and SSE workflows, rejects
+cross-origin API requests, and limits API request bodies to 1 MiB by default
+(`GATEWAY_MAX_REQUEST_BYTES` can change the limit). Its API is restricted to
+loopback requests; the upstream MCP Apps sandbox uses the alternate loopback
+hostname for isolation. Anonymous mcp-use telemetry is disabled. The upstream
+interface may request Google Fonts, and user-configured connections and AI
+providers can make network requests.
+
+The Inspector uses the forked mcp-use client, the upstream mcp-use proxy, and
+the local stdio relay; see [feature parity](docs/feature-parity.md) and
+[upstream provenance](docs/upstream-provenance.md). The upstream Start
+Tunnel control requires an `mcp-use dev` server and is unavailable in this
+standalone mount. The previous offline scaffold is at
+`http://127.0.0.1:4173/workspace`.
+
+Each development run generates a random ephemeral gateway bearer token and
+non-secret instance ID in memory. The token is sent to the gateway and Vite's
+server process only; Vite injects it into its local `/gateway` proxy, and
+browser bundles never receive a `VITE_` token variable. Tokens and instance
+IDs are not printed or persisted.
 
 Stop the command with `Ctrl+C`. On Windows, the runner uses a bounded `taskkill /t /f` and fails shutdown if that command fails, times out, or the process does not exit. On POSIX, children start in detached process groups; shutdown sends `SIGTERM`, waits only for the configured grace period, checks the group itself after a leader exits, escalates to `SIGKILL`, and verifies both leader exit and group absence after a second bounded wait. Surviving descendants or process-tree cleanup errors are fatal. Unexpected `SIGTERM`, `SIGINT`, or `SIGKILL` child exits are failures; only an explicitly requested runner shutdown is treated as successful. The gateway itself bounds request ingestion (default 1 MiB, configurable with `GATEWAY_MAX_REQUEST_BYTES`) and treats a graceful-close timeout as failure.
 
 Vite's local `/gateway` proxy is browser-origin protected: requests carrying browser `Origin`, `Sec-Fetch-Site`, or `Sec-Fetch-Mode` metadata must identify the exact configured Vite origin and must not be `cross-site`. Same-origin browser calls are allowed. Local command-line tools that send no `Origin` or Fetch Metadata (for example, curl without an explicit Origin) are treated as non-browser tooling and continue to work. The gateway bearer token is injected only into the Vite server process and proxy request; it is never emitted into the browser bundle.
 
-The development gateway is local-only. It has no MCP session or external process-launch capability in Phase 0; it serves the existing health and placeholder control surfaces only. Remote binding is not enabled by this development command.
+The development gateway is local-only and serves the existing health and placeholder control surfaces of the `/workspace` scaffold; MCP stdio processes are launched by the Inspector's local relay, not the gateway. Remote binding is not enabled by this development command.
+
+`pnpm build` builds a single `index.html` entry that loads the Inspector under
+`/mcp/inspector` and the scaffold elsewhere. The Inspector's proxy, OAuth,
+sandbox, and stdio relay are served by Vite server middleware and need a
+Node.js server; serving the static `dist` directory alone does not provide
+them. To check the
+built assets together with the mounted Inspector locally, run:
+
+```text
+pnpm --filter @combined-mcp-inspector/web exec vite preview --host 127.0.0.1
+```
+
+Vite preview is for local verification, not production deployment.
 
 `pnpm verify:phase-0` runs unit and command-contract tests, recursive type checking, provenance verification, production builds, and Playwright browser smoke tests in that order. The build checks emitted web assets for the server-only gateway secret. Playwright starts an isolated stack through the same runner on gateway port `3101` and web port `4273`, then stops it.

@@ -1,0 +1,201 @@
+import type { CustomHeader } from "@/client/components/CustomHeadersEditor";
+import {
+  buildOAuthStaticConfig,
+  getDefaultInspectorProxyAddress,
+  getStoredConnectionConfig,
+  protocolModeFromNegotiation,
+  protocolNegotiationForMode,
+  toEditableConnectionConfig,
+  type ConnectionMode,
+  type EditableConnectionConfig,
+  type InspectorProtocolMode,
+} from "@/client/utils/connectionUpdates";
+import type { McpServer } from "@mcp-use/client/react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+
+export function useConnectionFormState(
+  connection: McpServer | null,
+  enabled: boolean
+) {
+  const [alias, setAlias] = useState("");
+  const [url, setUrl] = useState("");
+  const [connectionMode, setConnectionMode] = useState<ConnectionMode>("auto");
+  const [protocolMode, setProtocolMode] =
+    useState<InspectorProtocolMode>("auto");
+  const [customHeaders, setCustomHeaders] = useState<CustomHeader[]>([]);
+  const [requestTimeout, setRequestTimeout] = useState("");
+  const [resetTimeoutOnProgress, setResetTimeoutOnProgress] = useState("True");
+  const [maxTotalTimeout, setMaxTotalTimeout] = useState("");
+  const [proxyAddress, setProxyAddress] = useState(
+    getDefaultInspectorProxyAddress()
+  );
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [scope, setScope] = useState("");
+
+  // Re-initialise the form only when the edited connection changes, not on
+  // every state update of the same connection. A failing connection retries
+  // and re-renders continuously, which used to wipe in-progress edits.
+  const connectionRef = useRef(connection);
+  connectionRef.current = connection;
+  const connectionId = connection?.id ?? null;
+
+  useEffect(() => {
+    const current = connectionRef.current;
+    if (!current || connectionId === null || !enabled) return;
+
+    const storedConfig = getStoredConnectionConfig<EditableConnectionConfig>(
+      current.id
+    );
+    const editable = toEditableConnectionConfig(current, storedConfig);
+
+    setUrl(editable.url);
+    setAlias(editable.name || editable.url);
+
+    const resolvedProxyAddress =
+      editable.proxyConfig?.proxyAddress ||
+      (typeof editable.autoProxyFallback === "object"
+        ? editable.autoProxyFallback.proxyAddress
+        : undefined);
+    setConnectionMode(editable.connectionMode || "auto");
+    setProtocolMode(protocolModeFromNegotiation(editable.protocolNegotiation));
+    setProxyAddress(resolvedProxyAddress || getDefaultInspectorProxyAddress());
+
+    const headersToConvert = editable.headers || {};
+    const headerArray: CustomHeader[] = Object.entries(headersToConvert).map(
+      ([name, value], index) => ({
+        id: `header-${index}`,
+        name,
+        value: String(value),
+      })
+    );
+    setCustomHeaders(headerArray);
+
+    setClientId(editable.oauth?.clientId || "");
+    setClientSecret(editable.oauth?.clientSecret || "");
+    setScope(editable.oauth?.scope || "");
+
+    setRequestTimeout(
+      editable.requestTimeout === undefined
+        ? ""
+        : String(editable.requestTimeout)
+    );
+    setResetTimeoutOnProgress(
+      (editable.resetTimeoutOnProgress ?? true) ? "True" : "False"
+    );
+    setMaxTotalTimeout(
+      editable.maxTotalTimeout === undefined
+        ? ""
+        : String(editable.maxTotalTimeout)
+    );
+  }, [connectionId, enabled]);
+
+  const buildConfig = (): EditableConnectionConfig | null => {
+    if (!url.trim()) return null;
+
+    let normalizedUrl = url.trim();
+    try {
+      const parsedUrl = new URL(normalizedUrl);
+      const isValid =
+        parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:";
+
+      if (!isValid) {
+        toast.error("Invalid URL protocol. Please use http:// or https://");
+        return null;
+      }
+    } catch {
+      try {
+        const urlWithHttps = `https://${normalizedUrl}`;
+        const parsedUrl = new URL(urlWithHttps);
+        const isValid =
+          parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:";
+
+        if (!isValid) {
+          toast.error("Invalid URL protocol. Please use http:// or https://");
+          return null;
+        }
+        normalizedUrl = urlWithHttps;
+      } catch {
+        toast.error("Invalid URL format. Please enter a valid URL.");
+        return null;
+      }
+    }
+
+    const headers = customHeaders.reduce(
+      (acc, header) => {
+        if (header.name && header.value) {
+          acc[header.name] = header.value;
+        }
+        return acc;
+      },
+      {} as Record<string, string>
+    );
+
+    const proxyConfig =
+      connectionMode === "proxy" && proxyAddress.trim()
+        ? {
+            proxyAddress: proxyAddress.trim(),
+            headers,
+          }
+        : undefined;
+
+    const autoProxyFallback =
+      connectionMode === "auto"
+        ? proxyAddress.trim()
+          ? { enabled: true, proxyAddress: proxyAddress.trim() }
+          : false
+        : false;
+
+    const oauth = buildOAuthStaticConfig(clientId, clientSecret, scope);
+    const parsedRequestTimeout = Number.parseInt(requestTimeout, 10);
+    const parsedMaxTotalTimeout = Number.parseInt(maxTotalTimeout, 10);
+
+    return {
+      url: normalizedUrl,
+      name: alias.trim() || normalizedUrl,
+      transportType: "http",
+      connectionMode,
+      protocolNegotiation: protocolNegotiationForMode(protocolMode),
+      proxyConfig,
+      headers: Object.keys(headers).length > 0 ? headers : undefined,
+      autoProxyFallback,
+      ...(oauth ? { oauth } : {}),
+      requestTimeout: Number.isFinite(parsedRequestTimeout)
+        ? parsedRequestTimeout
+        : undefined,
+      resetTimeoutOnProgress: resetTimeoutOnProgress === "True",
+      maxTotalTimeout: Number.isFinite(parsedMaxTotalTimeout)
+        ? parsedMaxTotalTimeout
+        : undefined,
+    };
+  };
+
+  return {
+    alias,
+    setAlias,
+    url,
+    setUrl,
+    connectionMode,
+    setConnectionMode,
+    protocolMode,
+    setProtocolMode,
+    customHeaders,
+    setCustomHeaders,
+    requestTimeout,
+    setRequestTimeout,
+    resetTimeoutOnProgress,
+    setResetTimeoutOnProgress,
+    maxTotalTimeout,
+    setMaxTotalTimeout,
+    proxyAddress,
+    setProxyAddress,
+    clientId,
+    setClientId,
+    clientSecret,
+    setClientSecret,
+    scope,
+    setScope,
+    buildConfig,
+  };
+}

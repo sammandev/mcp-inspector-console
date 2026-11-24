@@ -2,8 +2,13 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "baseUrl": ".",
+    "paths": { "@/client/*": ["vendor/mcp-use/client/*"], "@combined/features": ["src/features/InspectorFeatures.tsx"] },
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["vite/client"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts", "inspector-server.ts", "inspector-cli.ts", "local-relay.test.ts", "inspector-cli.test.ts", "vendor-provenance.test.ts"]
 }

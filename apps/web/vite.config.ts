@@ -2,6 +2,8 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import type { IncomingHttpHeaders } from "node:http";
+import { fileURLToPath } from "node:url";
+import { mcpUseInspector } from "./inspector-server.js";
 
 export function gatewayProxyRequestPolicy(headers: IncomingHttpHeaders, webOrigin: string): boolean {
   const fetchSite = headers["sec-fetch-site"];
@@ -15,7 +17,7 @@ export function gatewayProxyRequestPolicy(headers: IncomingHttpHeaders, webOrigi
 }
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), {
+  plugins: [mcpUseInspector(), react(), tailwindcss(), {
     name: "gateway-origin-guard",
     configureServer(server) {
       server.middlewares.use("/gateway", (request, response, next) => {
@@ -32,8 +34,22 @@ export default defineConfig({
   }],
   resolve: {
     dedupe: ["react", "react-dom"],
+    alias: {
+      "@/client": fileURLToPath(new URL("./vendor/mcp-use/client", import.meta.url)),
+      "@combined/features": fileURLToPath(new URL("./src/features/InspectorFeatures.tsx", import.meta.url)),
+    },
+  },
+  define: {
+    __MCP_USE_PACKAGE_VERSION__: JSON.stringify("20.3.33"),
+    "process.env": "{}",
+    "process.platform": JSON.stringify("browser"),
+    global: "globalThis",
+  },
+  optimizeDeps: {
+    entries: ["index.html", "src/inspector-entry.tsx", "src/workspace-entry.tsx"],
   },
   server: {
+    warmup: { clientFiles: ["./src/inspector-entry.tsx", "./src/workspace-entry.tsx"] },
     host: process.env.WEB_HOST,
     port: process.env.WEB_PORT ? Number.parseInt(process.env.WEB_PORT, 10) : undefined,
     strictPort: true,

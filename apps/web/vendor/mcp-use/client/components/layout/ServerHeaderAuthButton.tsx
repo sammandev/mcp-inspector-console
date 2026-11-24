@@ -1,0 +1,102 @@
+import { Button } from "@/client/components/ui/button";
+import { storeInspectorReconnectSession } from "@/client/hooks/useAutoConnect";
+import { cn } from "@/client/lib/utils";
+import type { McpServer } from "@mcp-use/client/react";
+import { Loader2 } from "lucide-react";
+
+const AUTH_BUTTON_CLASS =
+  "h-6 px-2 text-xs bg-yellow-500/20 border-0 dark:bg-yellow-400/10 text-yellow-800 dark:text-yellow-500 shrink-0";
+
+/** Compact Authenticate / Authenticating control for the inspector server header. */
+export function ServerHeaderAuthButton({
+  server,
+  className,
+}: {
+  server: McpServer;
+  className?: string;
+}) {
+  const { state, authUrl, authenticate } = server;
+  const isUnauthenticatedMixedServer =
+    state === "ready" &&
+    server.authorization?.mode === "mixed" &&
+    !server.authorization.authenticated;
+
+  if (
+    state !== "pending_auth" &&
+    state !== "authenticating" &&
+    !isUnauthenticatedMixedServer
+  ) {
+    return null;
+  }
+
+  if (state === "authenticating") {
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        disabled
+        className={cn(AUTH_BUTTON_CLASS, className)}
+      >
+        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+        Authenticating
+      </Button>
+    );
+  }
+
+  if (authenticate) {
+    const button = (
+      <Button
+        data-testid="server-header-authenticate"
+        size="sm"
+        variant="outline"
+        className={cn(AUTH_BUTTON_CLASS, className)}
+        onClick={(e) => {
+          e.stopPropagation();
+          storeInspectorReconnectSession(server);
+          void authenticate();
+        }}
+      >
+        Authenticate
+      </Button>
+    );
+
+    if (isUnauthenticatedMixedServer) {
+      return (
+        <div
+          data-testid="server-header-mixed-auth"
+          className="flex items-center gap-2 text-xs text-yellow-700 dark:text-yellow-500"
+        >
+          <span>This server is using mixed auth.</span>
+          {button}
+        </div>
+      );
+    }
+
+    return button;
+  }
+
+  if (authUrl) {
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        className={cn(AUTH_BUTTON_CLASS, className)}
+        render={
+          <a
+            href={authUrl}
+            data-testid="server-header-authenticate"
+            onClick={(e) => {
+              e.stopPropagation();
+              storeInspectorReconnectSession(server);
+            }}
+          />
+        }
+        nativeButton={false}
+      >
+        Authenticate
+      </Button>
+    );
+  }
+
+  return null;
+}

@@ -6,34 +6,42 @@ Reference revisions: mcp-use `8ff4b865e0e5712c66d5077e93392807daca9354`; Officia
 
 Each combined feature has exactly one status, owner phase, and upstream origin/source. Capability aliases provide stable machine-readable coverage IDs.
 
+These statuses describe the combined Inspector served at `/mcp/inspector`: a pinned, attributed fork of the MIT mcp-use UI whose native tabs preserve their workflows and whose Protocol, Auth, Client, and Diagnostics destinations add Official Inspector workflows with the MCP SDK. The original scaffold remains at `/workspace`.
+
+**Destination map:** Protocol owns raw/batched requests, pagination, traffic, Network, and Console; Auth owns OAuth discovery, masked tokens, and revocation; Client owns Roots and Tasks; Diagnostics owns local sessions, configuration, explicit stdio launch, load testing, and CLI automation. Native Tools, Prompts, Resources, Notifications, Skills, Connection Settings, Server Metadata, and the Dashboard remain the canonical mcp-use surfaces for their workflows.
+
+**Compatibility:** legacy URLs with `?tab=inspector` continue to open Protocol. New navigation uses `?tab=protocol`.
+
+**Not implemented:** cookie jars, suppressing the notification stream, enterprise IdP/step-up authorization, OAuth endpoint overrides, per-request log levels, and server reordering are unavailable through the mcp-use connector. Protocol requests may include `_meta`; mcp-use handles list-change refreshes.
+
 | ID | Feature | Capability aliases | Status | Owner phase | Source | Note |
 | --- | --- | --- | --- | --- | --- | --- |
 | provenance-scaffold | Provenance and scaffold | `provenance-scaffold` | implemented | phase-0 | combined | Typed inventories, pinned references, static shell, and generated reports. |
-| connection-foundation | Unified connection foundation | `connection-foundation` `transport-stdio` `transport-streamable-http` `transport-sse` | phase-placeholder | phase-1 | combined | Connection profiles, one-session relay, and local control channel for stdio, Streamable HTTP, and SSE. |
-| chat | Chat | `chat` | phase-placeholder | phase-2 | mcp-use | Preserve the published mcp-use chat surface. |
-| tools | Tools | `tools` | phase-placeholder | phase-2 | mcp-use | Preserve published tools through the authoritative relay. |
-| prompts | Prompts | `prompts` | phase-placeholder | phase-2 | mcp-use | Preserve published prompts through the authoritative relay. |
-| resources | Resources | `resources` | phase-placeholder | phase-2 | mcp-use | Preserve published resources and resource templates. |
-| skills | Skills | `skills` | phase-placeholder | phase-2 | mcp-use | Preserve published skill capabilities. |
-| apps-widgets | Apps and widgets | `apps-widgets` | rebuild | phase-2 | mcp-use | Compose published renderer capabilities; do not copy the unexported shell. |
-| server-workflows | Sampling, elicitation, and notifications | `sampling` `elicitation` `notifications` | phase-placeholder | phase-2 | mcp-use | Preserve approval workflows and notification UX. |
-| request-history | Saved requests and history | `saved-requests` `history` | phase-placeholder | phase-2 | mcp-use | Preserve local history with redacted import and export. |
-| multi-server-theme | Multi-server UX and theme behavior | `multi-server` `theme` | rebuild | phase-2 | mcp-use | Rebuild capability-aware navigation and shared mcp-use theme behavior. |
-| protocol-network-diagnostics | Protocol and network diagnostics | `protocol-transcript` `network-inspector` | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
-| process-stderr-diagnostics | Process and stderr diagnostics | `process-diagnostics` `stderr` | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
-| oauth | OAuth diagnostics | `oauth` | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
-| roots | Roots | `roots` | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
-| tasks | Tasks | `tasks` | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
-| completions | Completions | `completions` | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
-| subscriptions-logging | Subscriptions and logging controls | `subscriptions` `logging-controls` | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
-| apps-schema-conformance | Apps and schema conformance | `apps-metadata` `schema-conformance` | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
-| configuration-io | Configuration import and export | `config-import` `config-export` | blocked-license | phase-3 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
-| cli-automation | Automation and CLI assertions | `cli-automation` | blocked-license | phase-4 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
-| load-testing | Load testing | `load-testing` | blocked-license | phase-4 | official-inspector | Future runtime reuse is blocked until positive file-level legal classification. |
+| connection-foundation | Unified connection foundation | `connection-foundation` `transport-stdio` `transport-streamable-http` `transport-sse` | implemented | phase-1 | combined | The forked mcp-use client connects over Streamable HTTP and SSE; stdio servers launch through the loopback-only local relay. |
+| chat | Chat | `chat` | implemented | phase-2 | mcp-use | Provided by the pinned, attributed mcp-use UI fork, kept intact and covered by end-to-end tests. |
+| tools | Tools | `tools` | implemented | phase-2 | mcp-use | Provided by the pinned, attributed mcp-use UI fork, kept intact and covered by end-to-end tests. |
+| prompts | Prompts | `prompts` | implemented | phase-2 | mcp-use | Provided by the pinned, attributed mcp-use UI fork, kept intact and covered by end-to-end tests. |
+| resources | Resources | `resources` | implemented | phase-2 | mcp-use | Provided by the pinned, attributed mcp-use UI fork, kept intact and covered by end-to-end tests. |
+| skills | Skills | `skills` | implemented | phase-2 | mcp-use | Provided by the pinned, attributed mcp-use UI fork, kept intact and covered by end-to-end tests. |
+| apps-widgets | Apps and widgets | `apps-widgets` | implemented | phase-2 | mcp-use | Provided by the pinned, attributed mcp-use UI fork, kept intact and covered by end-to-end tests. |
+| server-workflows | Sampling, elicitation, and notifications | `sampling` `elicitation` `notifications` | implemented | phase-2 | mcp-use | Provided by the pinned, attributed mcp-use UI fork, kept intact and covered by end-to-end tests. |
+| request-history | Saved requests and history | `saved-requests` `history` | implemented | phase-2 | mcp-use | Provided by the pinned, attributed mcp-use UI fork, kept intact and covered by end-to-end tests. |
+| multi-server-theme | Multi-server UX and theme behavior | `multi-server` `theme` | implemented | phase-2 | mcp-use | Provided by the pinned, attributed mcp-use UI fork, kept intact and covered by end-to-end tests. |
+| protocol-network-diagnostics | Protocol and network diagnostics | `protocol-transcript` `network-inspector` | implemented | phase-3 | combined | Reimplemented with the MCP SDK on the selected mcp-use connection (Protocol destination with raw requests and redacted Network/Console capture); the Official Inspector is a behavioral reference only and no Official code is copied. |
+| process-stderr-diagnostics | Process and stderr diagnostics | `process-diagnostics` `stderr` | implemented | phase-3 | combined | Reimplemented with the MCP SDK on the selected mcp-use connection (Diagnostics destination with local session stderr and process lifecycle controls); the Official Inspector is a behavioral reference only and no Official code is copied. |
+| oauth | OAuth diagnostics | `oauth` | implemented | phase-3 | combined | Reimplemented with the MCP SDK on the selected mcp-use connection (Auth destination with protected-resource and authorization-server discovery); the Official Inspector is a behavioral reference only and no Official code is copied. |
+| roots | Roots | `roots` | implemented | phase-3 | combined | Reimplemented with the MCP SDK on the selected mcp-use connection (Client destination advertising validated file roots); the Official Inspector is a behavioral reference only and no Official code is copied. |
+| tasks | Tasks | `tasks` | implemented | phase-3 | combined | Reimplemented with the MCP SDK on the selected mcp-use connection (Client destination for task-augmented tool calls); the Official Inspector is a behavioral reference only and no Official code is copied. |
+| completions | Completions | `completions` | implemented | phase-3 | combined | Reimplemented with the MCP SDK on the selected mcp-use connection (Native Prompts and Resources tabs provide contextual argument completions); the Official Inspector is a behavioral reference only and no Official code is copied. |
+| subscriptions-logging | Subscriptions and logging controls | `subscriptions` `logging-controls` | implemented | phase-3 | combined | Reimplemented with the MCP SDK on the selected mcp-use connection (Native Resources and Notifications tabs provide subscriptions and log controls); the Official Inspector is a behavioral reference only and no Official code is copied. |
+| apps-schema-conformance | Apps and schema conformance | `apps-metadata` `schema-conformance` | implemented | phase-3 | combined | Reimplemented with the MCP SDK on the selected mcp-use connection (Native Tools tab validates schemas and checks MCP App resource metadata); the Official Inspector is a behavioral reference only and no Official code is copied. |
+| configuration-io | Configuration import and export | `config-import` `config-export` | implemented | phase-3 | combined | Reimplemented with the MCP SDK on the selected mcp-use connection (Diagnostics destination imports and exports redacted configs and explicitly launches stdio servers); the Official Inspector is a behavioral reference only and no Official code is copied. |
+| cli-automation | Automation and CLI assertions | `cli-automation` | implemented | phase-4 | combined | Reimplemented with the MCP SDK on the selected mcp-use connection (Diagnostics destination documents the `pnpm inspect` CLI); the Official Inspector is a behavioral reference only and no Official code is copied. |
+| load-testing | Load testing | `load-testing` | implemented | phase-4 | combined | Reimplemented with the MCP SDK on the selected mcp-use connection (Diagnostics destination runs load tests behind an explicit acknowledgement gate); the Official Inspector is a behavioral reference only and no Official code is copied. |
 
 ## Status meanings
 
-- `implemented`: present in Phase 0.
+- `implemented`: available in the combined Inspector and covered by automated tests.
 - `phase-placeholder`: represented in the scaffold and owned by a later phase.
 - `rebuild`: intentionally recreated around published contracts or a combined design.
 - `non-applicable`: intentionally not part of the combined product.

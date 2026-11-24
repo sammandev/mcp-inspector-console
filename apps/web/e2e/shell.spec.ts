@@ -22,7 +22,7 @@ function guardNetwork(page: Page) {
 test("desktop destinations select real placeholder content without external network", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   const external = guardNetwork(page);
-  await page.goto("/");
+  await page.goto("/workspace");
 
   await expect(page.getByTestId("connection-selector")).toHaveCount(1);
   const nav = page.getByTestId("desktop-navigation");
@@ -42,7 +42,7 @@ test("desktop destinations select real placeholder content without external netw
 test("mobile navigation enumerates destinations and is an accessible modal", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const external = guardNetwork(page);
-  await page.goto("/");
+  await page.goto("/workspace");
 
   await test.step("open modal at mobile breakpoint", async () => {
     await expect(page.getByTestId("desktop-navigation")).toBeHidden();
@@ -85,7 +85,7 @@ test("mobile navigation enumerates destinations and is an accessible modal", asy
 });
 
 test("gateway proxy enforces browser origin while allowing local tooling", async ({ request, page }) => {
-  const sameOrigin = await page.goto("/");
+  const sameOrigin = await page.goto("/workspace");
   expect(sameOrigin?.ok()).toBe(true);
   const allowed = await page.evaluate(async () => {
     const response = await fetch("/gateway/api/version");
@@ -105,7 +105,7 @@ test("gateway proxy enforces browser origin while allowing local tooling", async
 
 test("theme toggles through provider state and persists across reload with mcp-use tokens", async ({ page }) => {
   const external = guardNetwork(page);
-  await page.goto("/");
+  await page.goto("/workspace");
   const root = page.locator("html");
   const primary = page.getByTestId("primary-control");
 
@@ -125,6 +125,8 @@ test("theme toggles through provider state and persists across reload with mcp-u
 
   await page.getByRole("button", { name: "Switch to dark theme" }).click();
   await expect(root).toHaveClass(/dark/);
+  await expect(page.getByRole("heading", { name: "Connections" }))
+    .not.toHaveCSS("color", "rgb(36, 37, 33)");
   expect(await page.evaluate(() => localStorage.getItem("combined-inspector-theme"))).toBe("dark");
   await page.reload();
   await expect(root).toHaveClass(/dark/);

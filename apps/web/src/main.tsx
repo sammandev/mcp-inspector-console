@@ -1,13 +1,8 @@
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-import { App } from "./App.js";
-import "./styles.css";
-
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing application root");
 
-createRoot(root).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+if (/^\/mcp\/inspector(?:\/|$)/.test(window.location.pathname)) {
+  void import("./inspector-entry.js");
+} else {
+  void import("./workspace-entry.js");
+}

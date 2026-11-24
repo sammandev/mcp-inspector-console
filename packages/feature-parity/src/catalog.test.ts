@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { parityCatalog } from './catalog.js'
+import { parityCatalog, type ParityItem } from './catalog.js'
 import { requiredCapabilities } from './requirements.test-fixture.js'
 
 describe('feature parity catalog', () => {
@@ -24,10 +24,33 @@ describe('feature parity catalog', () => {
     }
   })
 
-  test('keeps future Official runtime features blocked pending file-level approval', () => {
-    const futureOfficialRuntime = parityCatalog.filter(({ source }) => source === 'official-inspector')
+  test('reimplements Official workflows as combined features without implementing Official runtime code', () => {
+    const officialSourced = (parityCatalog as readonly ParityItem[]).filter(({ source }) => source === 'official-inspector')
+    expect(officialSourced.every(({ status }) => status === 'blocked-license')).toBe(true)
+    const officialWorkflows = ['protocol-network-diagnostics', 'process-stderr-diagnostics', 'oauth', 'roots', 'tasks',
+      'completions', 'subscriptions-logging', 'apps-schema-conformance', 'configuration-io', 'cli-automation', 'load-testing']
+    for (const id of officialWorkflows) {
+      expect(parityCatalog.find((item) => item.id === id)).toMatchObject({ status: 'implemented', source: 'combined' })
+    }
+  })
 
-    expect(futureOfficialRuntime.length).toBeGreaterThan(0)
-    expect(futureOfficialRuntime.every(({ status }) => status === 'blocked-license')).toBe(true)
+  test('maps every supported Official workflow to its native or focused destination', () => {
+    const destinations: Record<string, string> = {
+      'protocol-network-diagnostics': 'Protocol',
+      'process-stderr-diagnostics': 'Diagnostics',
+      oauth: 'Auth',
+      roots: 'Client',
+      tasks: 'Client',
+      completions: 'Prompts and Resources',
+      'subscriptions-logging': 'Resources and Notifications',
+      'apps-schema-conformance': 'Tools',
+      'configuration-io': 'Diagnostics',
+      'cli-automation': 'Diagnostics',
+      'load-testing': 'Diagnostics',
+    }
+
+    for (const [id, destination] of Object.entries(destinations)) {
+      expect(parityCatalog.find((item) => item.id === id)?.note).toContain(destination)
+    }
   })
 })

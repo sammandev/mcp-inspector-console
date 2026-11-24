@@ -11,6 +11,7 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "build": "node scripts/build.mjs",
     "dev": "node scripts/dev.mjs",
+    "inspect": "node --experimental-strip-types apps/web/inspector-cli.ts",
     "test:e2e": "playwright test",
     "verify:phase-0": "pnpm test && pnpm typecheck && pnpm verify:provenance && pnpm build && pnpm test:e2e",
     "verify:provenance": "node --experimental-strip-types scripts/verify-upstream-manifest.ts",

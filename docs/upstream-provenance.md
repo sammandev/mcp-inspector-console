@@ -4,9 +4,11 @@
 
 Official copied files: **0**
 
-Phase 0 copies no Official Inspector files. Dependency-only mcp-use records identify package names rather than invented copied source identifiers. Future Official runtime code remains `blocked-license` until positive human/legal file-level classification.
+No Official Inspector files are copied; Official workflows are reimplemented from observed behavior with the MCP SDK. The mcp-use UI fork keeps its MIT license, and per-file checksums live in `apps/web/vendor/mcp-use/manifest.json`, where modified files are listed and carry a modification notice. Dependency-only mcp-use records identify the published packages that the fork and server mount consume.
 
 | Upstream | Pinned commit | Classification | Source/package | Local path | License | Attribution | Note |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| mcp-use | `8ff4b865e0e5712c66d5077e93392807daca9354` | dependency-only | @mcp-use/inspector, @mcp-use/client, @mcp-use/agent | — | MIT | mcp-use contributors | Consumed only as pinned published dependencies; no mcp-use source files are copied. |
-| official-inspector | `eb54b447e5377a7a18acaea9602fced5cb4c5b9f` | reference-only | modelcontextprotocol/inspector | — | pending | Official MCP Inspector contributors | Behavioral reference only. No Official Inspector files are copied; future runtime code remains blocked pending file-level legal approval. |
+| mcp-use | `8ff4b865e0e5712c66d5077e93392807daca9354` | dependency-only | @mcp-use/inspector, @mcp-use/client, @mcp-use/agent | — | MIT | mcp-use contributors | Pinned published packages consumed by the forked UI build and the server-side mount. |
+| mcp-use | `8ff4b865e0e5712c66d5077e93392807daca9354` | copied-file | libraries/typescript/packages/inspector/src/client | apps/web/vendor/mcp-use/client | MIT | mcp-use contributors | Attributed UI fork; per-file checksums and marked modifications are recorded in apps/web/vendor/mcp-use/manifest.json. |
+| mcp-use | `8ff4b865e0e5712c66d5077e93392807daca9354` | copied-file | libraries/typescript/packages/inspector/public | apps/web/public/mcp-use | MIT | mcp-use contributors | Unmodified static assets used by the forked UI; checksums are recorded in apps/web/vendor/mcp-use/manifest.json. |
+| official-inspector | `eb54b447e5377a7a18acaea9602fced5cb4c5b9f` | reference-only | modelcontextprotocol/inspector | — | pending | Official MCP Inspector contributors | Behavioral reference only. No Official Inspector files are copied; its workflows are reimplemented with the MCP SDK. |

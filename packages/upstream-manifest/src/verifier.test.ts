@@ -69,6 +69,28 @@ describe('generated provenance reports', () => {
     expect(() => generateReports(parity as never, upstreamManifest)).toThrow(new RegExp(field))
   })
 
+  test('records the attributed MIT mcp-use UI fork alongside its published dependencies', () => {
+    const reports = reportsFor()
+    expect(reports.provenance).toContain('| mcp-use | `8ff4b865e0e5712c66d5077e93392807daca9354` | copied-file | libraries/typescript/packages/inspector/src/client | apps/web/vendor/mcp-use/client | MIT |')
+    expect(reports.provenance).toContain('| dependency-only |')
+  })
+
+  test.each([
+    ['commit', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', /mcp-use.*pin/i],
+    ['license', 'Apache-2.0', /MIT/],
+  ])('rejects a copied mcp-use record with an invalid %s', (field, value, error) => {
+    expect(() => generateReports(parityCatalog, upstreamManifest.map((record) =>
+      record.classification === 'copied-file' ? { ...record, [field]: value } : record,
+    ))).toThrow(error)
+  })
+
+  test('rejects any copied Official Inspector file', () => {
+    expect(() => generateReports(parityCatalog, [...upstreamManifest, {
+      upstream: 'official-inspector', commit: 'eb54b447e5377a7a18acaea9602fced5cb4c5b9f', classification: 'copied-file',
+      sourcePath: 'client/src/App.tsx', localPath: 'apps/web/src/App.tsx', attribution: 'Official', license: 'MIT', note: 'copied',
+    }])).toThrow(/zero copied Official/)
+  })
+
   test('rejects missing independent capability aliases', () => {
     const parity = parityCatalog.map((item) => item.id === 'protocol-network-diagnostics'
       ? { ...item, aliases: item.aliases.filter((alias) => alias !== 'network-inspector') }

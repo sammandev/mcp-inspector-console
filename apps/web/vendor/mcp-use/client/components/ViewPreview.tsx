@@ -1,0 +1,546 @@
+/**
+ * ViewPreview — chromeless preview route for the screenshot CLI.
+ *
+ * Two modes:
+ *
+ *   - **Bundle mode** (used by `mcp-use screenshot`): the CLI pre-fetches the
+ *     tool result and widget resource, then injects the data into the page as
+ *     `globalThis.__mcpUsePreviewBundle` via CDP `Page.addScriptToEvaluateOnNewDocument`.
+ *     The component renders inline data with no live MCP connection — the OAuth
+ *     token never enters the browser.
+ *
+ *   - **Live mode** (interactive debugging): no bundle global; the component
+ *     opens an MCP connection from the browser via `useMcpClient`, looks up the
+ *     widget resource, and renders. Tokens (if any) are forwarded via the
+ *     `?headers=<base64>` query param. Reached via
+ *     `/inspector/preview/:view?props=<base64>&theme=...&server=...`.
+ *
+ * In both modes, `body[data-view-ready="true"]` is set once the renderer
+ * signals readiness + fonts have loaded + two animation frames have elapsed.
+ *
+ * If the MCP App fails to *initialize* — a bad resource, a sandbox connect
+ * failure, an initialize-handshake failure, or (bundle mode only) a missing
+ * screenshot bundle — `body[data-view-error="view_load_failed"]` is set
+ * instead, with an optional `body[data-view-error-message]` detail. This
+ * never fires for a widget's own `console.error`, uncaught errors, or
+ * unhandled rejections logged after it has successfully initialized; see
+ * `markViewLoadFailed` below.
+ */
+
+import {
+  ViewRenderer,
+  useMcpClient,
+  type ViewLifecycleEvent,
+} from "@mcp-use/client/react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useParams, useSearchParams } from "react-router";
+import { useViewHostProps } from "@/client/hooks/useViewHostProps";
+import { getBasePath } from "@/client/utils/basePath";
+import { Spinner } from "@/client/components/ui/spinner";
+
+const PREVIEW_SERVER_ID = "preview-default";
+
+interface PreviewProps {
+  toolInput?: Record<string, unknown>;
+  toolOutput?: unknown;
+}
+
+interface PreviewBundle {
+  resourceUri: string;
+  resourceContents: unknown;
+  toolInput?: Record<string, unknown>;
+  toolOutput?: unknown;
+}
+
+function decodeProps(raw: string | null): PreviewProps {
+  if (!raw) return {};
+  try {
+    const json = atob(raw);
+    const parsed = JSON.parse(json) as PreviewProps;
+    if (parsed && typeof parsed === "object") return parsed;
+  } catch {
+    // Fall through to empty
+  }
+  return {};
+}
+
+function findResourceUri(
+  resources: { uri: string; name?: string }[],
+  view: string
+): string | undefined {
+  // ui://widget/<view>.html or ui://widget/<view>.<buildId>.html.
+  // Match by URI prefix; fall back to name match.
+  const prefix = `ui://widget/${view}`;
+  const byUri = resources.find(
+    (r) => r.uri.startsWith(`${prefix}.`) && r.uri.endsWith(".html")
+  );
+  if (byUri) return byUri.uri;
+  return resources.find((r) => r.name === view)?.uri;
+}
+
+function readPreviewBundle(): PreviewBundle | undefined {
+  const g = (globalThis as { __mcpUsePreviewBundle?: unknown })
+    .__mcpUsePreviewBundle;
+  if (!g || typeof g !== "object") return undefined;
+  const b = g as Partial<PreviewBundle>;
+  if (typeof b.resourceUri !== "string") return undefined;
+  return b as PreviewBundle;
+}
+
+/**
+ * Apply the chromeless preview viewport (no scroll, no margins). Used by
+ * both bundle and live modes.
+ */
+function usePreviewViewport(): void {
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtmlMargin = html.style.margin;
+    const prevBodyMargin = body.style.margin;
+    const prevBodyOverflow = body.style.overflow;
+    html.style.margin = "0";
+    body.style.margin = "0";
+    body.style.overflow = "hidden";
+    return () => {
+      html.style.margin = prevHtmlMargin;
+      body.style.margin = prevBodyMargin;
+      body.style.overflow = prevBodyOverflow;
+    };
+  }, []);
+}
+
+/**
+ * Mark `body[data-view-error="view_load_failed"]` for the screenshot CLI to
+ * poll for. Reserved for explicit MCP App *initialization* failures — the
+ * widget never became ready to render — never for arbitrary `console.error`
+ * calls, uncaught errors, or unhandled rejections a widget logs after it has
+ * successfully initialized. Those are frequently recoverable and would
+ * otherwise turn a working screenshot into a false-positive failure.
+ */
+function markViewLoadFailed(message?: string): void {
+  document.body.dataset.viewError = "view_load_failed";
+  if (message) document.body.dataset.viewErrorMessage = message;
+  else delete document.body.dataset.viewErrorMessage;
+}
+
+function clearViewLoadFailed(): void {
+  delete document.body.dataset.viewError;
+  delete document.body.dataset.viewErrorMessage;
+}
+
+/** Surface a missing screenshot bundle as an initialization failure. */
+function usePreviewErrorSignal(
+  bundleRequired: boolean,
+  bundlePresent: boolean
+): void {
+  useEffect(() => {
+    if (bundleRequired && !bundlePresent) {
+      markViewLoadFailed(
+        "Screenshot bundle was not injected before navigation."
+      );
+    }
+    return () => clearViewLoadFailed();
+  }, [bundleRequired, bundlePresent]);
+}
+
+/**
+ * Track {@link ViewRenderer}'s lifecycle and mark `view_load_failed` only for
+ * an `"error"` status reached before the view first initializes — resource
+ * resolution failures, sandbox connect failures, and initialize-handshake
+ * failures.
+ *
+ * `ViewRenderer` also reports `"error"` for a *later* guest
+ * re-initialization sync failure (e.g. the widget's own dev-mode HMR reload
+ * failing to resynchronize) — see `installInitializedSync`'s `onLaterError`
+ * in `@mcp-use/client`. That happens only after the view already initialized
+ * once, without ever emitting `"resolving"` or `"connecting"` again (the
+ * bridge is already connected), so it must not retroactively fail an
+ * otherwise-successful capture. Once `"initialized"`/`"ready"` is seen,
+ * further `"error"` events are ignored until a fresh `"resolving"` (a new
+ * resource resolve) or `"connecting"` (a bridge reconnect on the same
+ * resource — its effect has a dependency set disjoint from the resolve
+ * effect's, so it can re-run on its own) re-arms the check.
+ *
+ * The marker is cleared only for stages that positively belong to the active
+ * attempt (`"resolving"`/`"connecting"` starting one, `"initialized"`/
+ * `"ready"` completing one). `"tearing-down"` and `"closed"` are ignored:
+ * they can arrive late from a superseded bridge attempt, and a sequence such
+ * as connecting → error → (old) closed would otherwise erase the current
+ * attempt's failure and let the screenshot CLI time out or capture a broken
+ * view instead of failing.
+ */
+export function useViewLifecycleErrorSignal(): (
+  event: ViewLifecycleEvent
+) => void {
+  const initializedRef = useRef(false);
+  return useCallback((event: ViewLifecycleEvent) => {
+    if (event.status === "resolving" || event.status === "connecting") {
+      initializedRef.current = false;
+      clearViewLoadFailed();
+      return;
+    }
+
+    if (event.status === "initialized" || event.status === "ready") {
+      initializedRef.current = true;
+      clearViewLoadFailed();
+      return;
+    }
+
+    if (event.status === "error") {
+      if (!initializedRef.current) markViewLoadFailed(event.error);
+      return;
+    }
+
+    // "sandbox-loading" only follows a "resolving" that already cleared, and
+    // "tearing-down"/"closed" may belong to an older attempt — neither may
+    // erase the current attempt's marker.
+  }, []);
+}
+
+/**
+ * Once the renderer signals readiness, wait for fonts.ready then two rAF
+ * ticks and flip `body[data-view-ready="true"]` so the screenshot CLI's
+ * polling selector matches.
+ */
+function usePreviewReadinessSignal(rendererReady: boolean): void {
+  useEffect(() => {
+    if (!rendererReady) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await document.fonts.ready;
+      } catch {
+        // fonts API may be unavailable; proceed anyway
+      }
+      if (cancelled) return;
+      await new Promise((r) => requestAnimationFrame(() => r(undefined)));
+      await new Promise((r) => requestAnimationFrame(() => r(undefined)));
+      if (cancelled) return;
+      document.body.setAttribute("data-view-ready", "true");
+    })();
+    return () => {
+      cancelled = true;
+      document.body.removeAttribute("data-view-ready");
+    };
+  }, [rendererReady]);
+}
+
+/**
+ * Bundle-mode readiness: after the renderer signals ready, watch the iframe's
+ * bounding rect via ResizeObserver. Once the rect stops changing for a short
+ * idle window (~250ms — enough to absorb the inline-height 300ms transition
+ * and any post-layout settling), serialize the rect onto body data attributes
+ * and flip `data-view-ready="true"` so the screenshot CLI can read it and
+ * use it as the capture clip. Falls back gracefully if the iframe never
+ * appears or never reports a size (the CLI's overall timeout still bounds us).
+ */
+function useBundleReadinessSignal(
+  rendererReady: boolean,
+  containerRef: React.RefObject<HTMLDivElement | null>
+): void {
+  useEffect(() => {
+    if (!rendererReady) return;
+    let cancelled = false;
+    let stableTimer: ReturnType<typeof setTimeout> | undefined;
+    let observer: ResizeObserver | undefined;
+
+    const writeReady = (rect: DOMRect | null) => {
+      if (cancelled) return;
+      if (rect) {
+        document.body.dataset.viewX = String(Math.round(rect.left));
+        document.body.dataset.viewY = String(Math.round(rect.top));
+        document.body.dataset.viewWidth = String(Math.round(rect.width));
+        document.body.dataset.viewHeight = String(Math.round(rect.height));
+      }
+      document.body.setAttribute("data-view-ready", "true");
+    };
+
+    (async () => {
+      try {
+        await document.fonts.ready;
+      } catch {
+        // fonts API may be unavailable; proceed anyway
+      }
+      if (cancelled) return;
+      await new Promise((r) => requestAnimationFrame(() => r(undefined)));
+      await new Promise((r) => requestAnimationFrame(() => r(undefined)));
+      if (cancelled) return;
+
+      const iframe = containerRef.current?.querySelector("iframe");
+      if (!iframe) {
+        writeReady(null);
+        return;
+      }
+
+      const scheduleStable = () => {
+        if (stableTimer) clearTimeout(stableTimer);
+        stableTimer = setTimeout(() => {
+          if (cancelled) return;
+          observer?.disconnect();
+          writeReady(iframe.getBoundingClientRect());
+        }, 250);
+      };
+
+      observer = new ResizeObserver(scheduleStable);
+      observer.observe(iframe);
+      scheduleStable();
+    })();
+
+    return () => {
+      cancelled = true;
+      if (stableTimer) clearTimeout(stableTimer);
+      observer?.disconnect();
+      document.body.removeAttribute("data-view-ready");
+      delete document.body.dataset.viewX;
+      delete document.body.dataset.viewY;
+      delete document.body.dataset.viewWidth;
+      delete document.body.dataset.viewHeight;
+    };
+  }, [rendererReady, containerRef]);
+}
+
+/**
+ * Bundle mode: render from inline data injected by the screenshot CLI.
+ * No live MCP connection. Runtime widget calls (`oncalltool`,
+ * `onlistresources`) intentionally fall through to MCPAppsRenderer's
+ * "no server" path and throw — bundle mode targets initial render only.
+ *
+ * Uses `displayMode="inline"` so the iframe auto-sizes to the widget's
+ * reported height (avoiding the whitespace that fullscreen mode produces
+ * for widgets shorter than the viewport). An optional `?width=N` query
+ * param overrides the inline 768px max-width cap so callers can request
+ * wider screenshots.
+ */
+function ViewPreviewBundle({
+  view,
+  bundle,
+  widthOverride,
+  theme,
+}: {
+  view: string;
+  bundle: PreviewBundle;
+  widthOverride?: number;
+  theme: "light" | "dark";
+}) {
+  const [rendererReady, setRendererReady] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  usePreviewViewport();
+  useBundleReadinessSignal(rendererReady, containerRef);
+  const onLifecycleChange = useViewLifecycleErrorSignal();
+
+  const readResource = useMemo(() => {
+    return async (uri: string) => {
+      if (uri === bundle.resourceUri) return bundle.resourceContents;
+      throw new Error(`Resource ${uri} not in screenshot bundle`);
+    };
+  }, [bundle]);
+
+  const toolCallId = useMemo(
+    () => `preview-bundle-${view}-${Date.now().toString(36)}`,
+    [view]
+  );
+
+  return (
+    <div ref={containerRef} style={{ width: "100vw", height: "100vh" }}>
+      <ViewRenderer
+        viewId={toolCallId}
+        toolName={view}
+        toolInput={bundle.toolInput}
+        toolOutput={bundle.toolOutput}
+        displayMode="inline"
+        inlineMaxWidth={widthOverride}
+        chromeless
+        onReady={() => setRendererReady(true)}
+        onLifecycleChange={onLifecycleChange}
+        source={{
+          kind: "live",
+          connection: {
+            callTool: async () => {
+              throw new Error("Preview bundle mode has no server connection");
+            },
+            readResource,
+          },
+          resourceUri: bundle.resourceUri,
+        }}
+        cspMode="permissive"
+        hostInfo={{ name: "mcp-use-inspector", version: "11.0.0" }}
+        hostContext={{ theme }}
+        // A partial `window.openai` makes legacy `useWidget()` builds select
+        // the ChatGPT adapter before the MCP Apps handshake and render with
+        // empty props. Bundle previews are MCP Apps hosts, so do not advertise
+        // a second host protocol just to provide optional file helpers.
+        mockOpenAiFileApis={false}
+      />
+    </div>
+  );
+}
+
+/**
+ * Live mode: open an MCP connection in the browser and render against it.
+ * Used for interactive debugging via `/inspector/preview/:view?...`.
+ */
+function ViewPreviewLive({ view }: { view: string }) {
+  const [search] = useSearchParams();
+
+  const previewProps = useMemo(
+    () => decodeProps(search.get("props")),
+    [search]
+  );
+
+  const serverUrl = useMemo(() => {
+    const fromQuery = search.get("server");
+    if (fromQuery) return fromQuery;
+    // The MCP transport lives at `${basePath}` (default `/mcp`; root-mount `/`).
+    return `${window.location.origin}${getBasePath() || "/"}`;
+  }, [search]);
+
+  // Forwarded headers for live-mode interactive use. Not used by the
+  // screenshot CLI anymore — that path uses bundle mode.
+  const previewHeaders = useMemo(() => {
+    const raw = search.get("headers");
+    if (!raw) return undefined;
+    try {
+      const parsed = JSON.parse(atob(raw));
+      if (parsed && typeof parsed === "object") {
+        return parsed as Record<string, string>;
+      }
+    } catch {
+      // Fall through.
+    }
+    return undefined;
+  }, [search]);
+
+  const { servers, addServer, storageLoaded } = useMcpClient();
+  const server = servers.find((s) => s.id === PREVIEW_SERVER_ID);
+
+  useEffect(() => {
+    if (!storageLoaded) return;
+    addServer(PREVIEW_SERVER_ID, {
+      url: serverUrl,
+      displayName: "Preview",
+      protocolNegotiation: "auto",
+      ...(previewHeaders ? { headers: previewHeaders } : {}),
+    });
+  }, [storageLoaded, serverUrl, previewHeaders, addServer]);
+
+  const ready = server?.state === "ready";
+  const failed = server?.state === "failed";
+
+  const resourceUri = useMemo(() => {
+    if (!ready) return undefined;
+    return findResourceUri(server.resources, view);
+  }, [ready, server?.resources, view]);
+
+  const toolCallId = useMemo(
+    () => `preview-${view}-${Date.now().toString(36)}`,
+    [view]
+  );
+
+  const readResource = useMemo(() => {
+    return async (uri: string) => {
+      if (!server?.readResource) {
+        throw new Error("Server not ready");
+      }
+      return server.readResource(uri);
+    };
+  }, [server]);
+
+  const [rendererReady, setRendererReady] = useState(false);
+  usePreviewReadinessSignal(rendererReady);
+  usePreviewViewport();
+
+  const hostProps = useViewHostProps({
+    serverId: PREVIEW_SERVER_ID,
+    viewId: toolCallId,
+    resourceUri: resourceUri ?? "",
+    toolName: view,
+    toolInput: previewProps.toolInput,
+    toolOutput: previewProps.toolOutput,
+    readResource,
+    displayMode: "fullscreen",
+    chromeless: true,
+    onReady: () => setRendererReady(true),
+  });
+
+  if (failed) {
+    return (
+      <div style={{ padding: 16, fontFamily: "monospace", color: "#b00" }}>
+        Failed to connect to MCP server at {serverUrl}.
+      </div>
+    );
+  }
+
+  if (!ready || !resourceUri) {
+    if (ready && !resourceUri) {
+      return (
+        <div style={{ padding: 16, fontFamily: "monospace", color: "#b00" }}>
+          View "{view}" not found on {serverUrl}.
+        </div>
+      );
+    }
+    return (
+      <div
+        style={{
+          width: "100vw",
+          height: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "monospace",
+          color: "var(--muted-foreground, #888)",
+        }}
+      >
+        <Spinner className="size-5" />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ width: "100vw", height: "100vh" }}>
+      {hostProps && resourceUri ? (
+        <ViewRenderer
+          viewId={toolCallId}
+          toolName={view}
+          toolInput={previewProps.toolInput}
+          toolOutput={previewProps.toolOutput}
+          displayMode="fullscreen"
+          chromeless
+          {...hostProps}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+export function ViewPreview() {
+  const params = useParams<{ view: string }>();
+  const [search] = useSearchParams();
+  const view = params.view ?? "";
+
+  // Bundle is read once at mount. The screenshot CLI sets it via CDP
+  // before any document scripts run, so it's stable across renders.
+  const bundle = useMemo(() => readPreviewBundle(), []);
+  const bundleRequired = search.get("protocol") === "1";
+  usePreviewErrorSignal(bundleRequired, bundle !== undefined);
+
+  const widthOverride = useMemo(() => {
+    const raw = search.get("width");
+    if (!raw) return undefined;
+    const n = parseInt(raw, 10);
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  }, [search]);
+  const theme = search.get("theme") === "dark" ? "dark" : "light";
+
+  if (bundle) {
+    return (
+      <ViewPreviewBundle
+        view={view}
+        bundle={bundle}
+        widthOverride={widthOverride}
+        theme={theme}
+      />
+    );
+  }
+  if (bundleRequired) return null;
+  return <ViewPreviewLive view={view} />;
+}
