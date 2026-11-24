@@ -1,7 +1,9 @@
-import { exec } from "node:child_process";
-import { readFile, readdir } from "node:fs/promises";
-import { promisify } from "node:util";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import tailwindcss from "@tailwindcss/vite";
+import { build } from "vite";
 import { describe, expect, it } from "vitest";
 import {
   publishedExports,
@@ -45,21 +47,55 @@ describe("published mcp-use export boundary", () => {
     });
   });
 
-  it("compiles utilities found in the installed Inspector client bundle", async () => {
+  it("compiles utilities only when the installed Inspector client is a source", async () => {
+    const candidate = ["bg-white", "90"].join("/");
+    const selector = `.${candidate.replace("/", "\\/")}`;
     const inspectorEntry = fileURLToPath(import.meta.resolve("@mcp-use/inspector/client"));
     const inspectorSource = await readFile(inspectorEntry, "utf8");
-    expect(inspectorSource).toContain("bg-white/90");
+    expect(inspectorSource).toContain(candidate);
 
-    const execAsync = promisify(exec);
-    await execAsync("pnpm run build", {
-      cwd: fileURLToPath(new URL("..", import.meta.url)),
-    });
+    const webRoot = fileURLToPath(new URL("..", import.meta.url));
+    const sourceDirective = `@source "${join(
+      webRoot,
+      "node_modules/@mcp-use/inspector/dist/client",
+    ).replaceAll("\\", "/")}";`;
+    const compile = async (source: string) => {
+      const root = await mkdtemp(join(tmpdir(), "mcp-use-tailwind-"));
+      const entry = join(root, "entry.css");
+      await writeFile(entry, `@import "tailwindcss";\n${source}\n`);
 
-    const assetsPath = new URL("../dist/assets/", import.meta.url);
-    const cssFile = (await readdir(assetsPath)).find((name) => name.endsWith(".css"));
-    expect(cssFile, "Vite must emit a CSS asset").toBeDefined();
+      try {
+        const result = await build({
+          root,
+          configFile: false,
+          logLevel: "silent",
+          plugins: [tailwindcss()],
+          build: {
+            write: false,
+            rollupOptions: { input: entry },
+          },
+        });
+        const output = Array.isArray(result) ? result[0] : result;
+        expect(output).toHaveProperty("output");
+        if (Array.isArray(output) || !("output" in output)) {
+          throw new Error("Vite one-shot build did not return a Rollup output");
+        }
+        const css = output.output.find(
+          (item) => item.type === "asset" && item.fileName.endsWith(".css"),
+        );
+        expect(css, "Vite must emit a CSS asset").toBeDefined();
+        return String(css && css.type === "asset" ? css.source : "");
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    };
 
-    const css = await readFile(new URL(cssFile!, assetsPath), "utf8");
-    expect(css).toContain(".bg-white\\/90");
+    const controlCss = await compile("");
+    expect(controlCss, "control build must not discover the Inspector-only class").not.toContain(
+      selector,
+    );
+
+    const sourceCss = await compile(sourceDirective);
+    expect(sourceCss, "Inspector @source must emit the package-only class").toContain(selector);
   });
 });
