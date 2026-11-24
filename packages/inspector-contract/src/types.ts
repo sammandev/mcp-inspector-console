@@ -9,7 +9,6 @@ export type JsonValue =
 interface ConnectionProfileBase {
   readonly id: string
   readonly name?: string
-  readonly environment?: Readonly<Record<string, string>>
 }
 
 export interface StdioConnectionProfile extends ConnectionProfileBase {
@@ -17,6 +16,7 @@ export interface StdioConnectionProfile extends ConnectionProfileBase {
   readonly command: string
   readonly args?: readonly string[]
   readonly cwd?: string
+  readonly environment?: Readonly<Record<string, string>>
 }
 
 export interface StreamableHttpConnectionProfile extends ConnectionProfileBase {

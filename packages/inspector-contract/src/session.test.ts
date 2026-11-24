@@ -90,4 +90,65 @@ describe('upstream-independent inspector contract', () => {
     expectTypeOf<InspectorOperation>().toMatchTypeOf<string>()
     expectTypeOf<InspectorEvent>().toMatchTypeOf<object>()
   })
+
+  test('narrows transport-specific profile fields', () => {
+    const inspect = (profile: ConnectionProfile) => {
+      switch (profile.transport) {
+        case 'stdio':
+          expectTypeOf(profile.command).toEqualTypeOf<string>()
+          return profile.command
+        case 'streamable-http':
+        case 'sse':
+          expectTypeOf(profile.url).toEqualTypeOf<string>()
+          return profile.url
+      }
+    }
+
+    expect(inspect({ id: 'stdio', transport: 'stdio', command: 'node' })).toBe('node')
+  })
+
+  test('rejects invalid transport, operation, event, and session shapes', () => {
+    const stdio: ConnectionProfile = {
+      id: 'stdio',
+      transport: 'stdio',
+      command: 'node',
+      environment: { MODE: 'test' },
+    }
+    const invalidStdio: ConnectionProfile = {
+      id: 'stdio',
+      transport: 'stdio',
+      command: 'node',
+      // @ts-expect-error stdio profiles have a command, not a URL
+      url: 'https://localhost/mcp',
+    }
+    // @ts-expect-error HTTP profiles cannot carry stdio environment variables
+    const invalidHttp = { id: 'http', transport: 'sse', url: 'https://localhost/sse', environment: {} } satisfies ConnectionProfile
+    // @ts-expect-error operations are a closed set of capability commands
+    const invalidOperation: InspectorOperation = 'delete-everything'
+    // @ts-expect-error event variants are contract-owned and closed
+    const invalidEvent: InspectorEvent['type'] = 'server-exploded'
+    // @ts-expect-error UnifiedInspectorSession requires all four composed interface areas
+    const missingDiagnostics: UnifiedInspectorSession = {
+      profileId: 'stdio',
+      sessionId: 'session',
+      lifecycle: {} as SessionLifecycle,
+      operations: {} as SessionOperations,
+      subscriptions: {} as SessionSubscriptions,
+    }
+    // @ts-expect-error stable session IDs are required on the composed interface
+    const missingSessionId: UnifiedInspectorSession = {
+      profileId: 'stdio',
+      lifecycle: {} as SessionLifecycle,
+      operations: {} as SessionOperations,
+      diagnostics: {} as SessionDiagnostics,
+      subscriptions: {} as SessionSubscriptions,
+    }
+
+    void invalidStdio
+    void invalidHttp
+    void invalidOperation
+    void invalidEvent
+    void missingDiagnostics
+    void missingSessionId
+  })
 })
