@@ -10,10 +10,13 @@
     "test": "node --test scripts/workspace-shape.test.mjs && pnpm -r --if-present test",
     "typecheck": "pnpm -r --if-present typecheck",
     "build": "pnpm -r --if-present build",
-    "dev": "pnpm -r --if-present dev"
+    "dev": "pnpm -r --if-present dev",
+    "verify:provenance": "node --experimental-strip-types scripts/verify-upstream-manifest.ts",
+    "generate:provenance": "node --experimental-strip-types scripts/verify-upstream-manifest.ts --write"
   },
   "devDependencies": {
     "@playwright/test": "1.65.1",
+    "@types/node": "24.10.13",
     "typescript": "5.9.3",
     "vitest": "4.1.12"
   }

@@ -15,6 +15,8 @@ test('declares the pinned standalone workspace shape', async () => {
     typecheck: 'pnpm -r --if-present typecheck',
     build: 'pnpm -r --if-present build',
     dev: 'pnpm -r --if-present dev',
+    'verify:provenance': 'node --experimental-strip-types scripts/verify-upstream-manifest.ts',
+    'generate:provenance': 'node --experimental-strip-types scripts/verify-upstream-manifest.ts --write',
   })
 
   const workspace = await readFile(new URL('pnpm-workspace.yaml', root), 'utf8')

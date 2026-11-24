@@ -1,0 +1,19 @@
+{
+  "name": "@combined-mcp-inspector/upstream-manifest",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "types": "./src/manifest.ts",
+  "exports": {
+    ".": {
+      "types": "./src/manifest.ts"
+    }
+  },
+  "scripts": {
+    "test": "vitest run src/validate.test.ts src/verifier.test.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=22.23.4"
+  }
+}
