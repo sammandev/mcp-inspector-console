@@ -20,7 +20,7 @@ test('declares the pinned standalone workspace shape and runnable commands', asy
   assert.equal(manifest.packageManager, 'pnpm@12.21.0')
   assert.equal(manifest.engines?.node, '>=22.23.4')
   assert.equal(manifest.scripts.dev, 'node scripts/dev.mjs')
-  assert.equal(manifest.scripts.test, 'node --test scripts/workspace-shape.test.mjs scripts/dev-runner.test.mjs && pnpm -r --if-present test')
+  assert.equal(manifest.scripts.test, 'node --test scripts/workspace-shape.test.mjs scripts/dev-runner.test.mjs scripts/dev-runner-lifecycle.test.mjs && pnpm -r --if-present test')
   assert.equal(manifest.scripts.typecheck, 'pnpm -r --if-present typecheck')
   assert.equal(manifest.scripts.build, 'node scripts/build.mjs')
   assert.equal(manifest.scripts['test:e2e'], 'playwright test')

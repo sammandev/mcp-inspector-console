@@ -47,6 +47,10 @@ function harness(overrides = {}) {
     async kill(pid, signal) {
       log.push(['kill', pid, signal])
     },
+    groupExists(pid) {
+      log.push(['kill', pid, 0])
+      return false
+    },
     async taskkill(pid) {
       log.push(['taskkill', pid])
       const child = children.find((candidate) => candidate.pid === pid)
@@ -100,8 +104,18 @@ test('rejects a gateway exit while readiness is pending', async () => {
 })
 
 test('uses detached POSIX groups, TERM then bounded KILL escalation', async () => {
-  const { adapter, log } = harness({ platform: 'linux' })
-  adapter.waitForExit = async () => false
+  const deadGroups = new Set()
+  const { adapter, log } = harness({
+    platform: 'linux',
+    adapter: {
+      groupExists(pid) { log.push(['kill', pid, 0]); return !deadGroups.has(pid) },
+      async kill(pid, signal) {
+        log.push(['kill', pid, signal])
+        if (signal === 'SIGKILL') deadGroups.add(pid)
+      },
+      waitForExit: (() => { let attempts = 0; return async () => ++attempts % 2 === 0 })(),
+    },
+  })
   await runDev({ adapter, keepRunning: false })
   assert.ok(log.filter(([event]) => event === 'spawn').every(([, , options]) => options.detached === true))
   assert.ok(log.some(([event, pid, signal]) => event === 'kill' && pid < 0 && signal === 'SIGTERM'))

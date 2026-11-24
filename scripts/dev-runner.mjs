@@ -9,8 +9,14 @@ function hasExited(child) {
   return child.exitCode !== null || child.signalCode !== null
 }
 
-function childExitCode(child) {
-  return child.exitCode ?? (child.signalCode === null ? 1 : 0)
+function unexpectedExit(child, name) {
+  if (child.signalCode) return new Error(`${name} exited from ${child.signalCode}`)
+  return new Error(`${name} exited with code ${child.exitCode ?? 1}`)
+}
+
+function unexpectedExitCode(child) {
+  if (child.signalCode) return 1
+  return child.exitCode || 1
 }
 
 async function defaultWaitForExit(child, timeoutMs) {
@@ -29,18 +35,21 @@ async function defaultWaitForExit(child, timeoutMs) {
 }
 
 async function defaultTaskkill(pid) {
-  await new Promise((resolve) => {
+  await new Promise((resolve, reject) => {
     const killer = spawn('taskkill', ['/pid', String(pid), '/t', '/f'], { stdio: 'ignore', windowsHide: true })
     const timer = setTimeout(() => {
       killer.kill('SIGKILL')
-      resolve()
+      reject(new Error(`taskkill timed out for pid ${pid}`))
     }, TERMINATION_GRACE_MS)
-    const done = () => {
+    killer.once('error', (error) => {
       clearTimeout(timer)
-      resolve()
-    }
-    killer.once('error', done)
-    killer.once('exit', done)
+      reject(error)
+    })
+    killer.once('exit', (code) => {
+      clearTimeout(timer)
+      if (code === 0) resolve()
+      else reject(new Error(`taskkill failed for pid ${pid} with code ${code}`))
+    })
   })
 }
 
@@ -51,6 +60,12 @@ function defaultAdapter() {
     fetch: globalThis.fetch,
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     kill: (pid, signal) => process.kill(pid, signal),
+    groupExists: (pid) => {
+      try { process.kill(pid, 0); return true } catch (error) {
+        if (error?.code === 'ESRCH') return false
+        throw error
+      }
+    },
     taskkill: defaultTaskkill,
     waitForExit: defaultWaitForExit,
     now: Date.now,
@@ -61,22 +76,35 @@ function defaultAdapter() {
   }
 }
 
+function isGroupAlive(adapter, child) {
+  return adapter.groupExists(-child.pid)
+}
+
 async function terminate(child, adapter) {
-  if (hasExited(child)) return
   if (adapter.platform === 'win32') {
+    if (hasExited(child)) return
     await adapter.taskkill(child.pid)
-    await adapter.waitForExit(child, TERMINATION_GRACE_MS)
+    if (!await adapter.waitForExit(child, TERMINATION_GRACE_MS)) {
+      throw new Error(`Windows process tree for ${child.name ?? child.pid} did not exit`)
+    }
     return
   }
+
   const groupId = -child.pid
-  try { await adapter.kill(groupId, 'SIGTERM') } catch (error) {
+  if (!isGroupAlive(adapter, child)) return
+  await adapter.kill(groupId, 'SIGTERM').catch((error) => {
     if (error?.code !== 'ESRCH') throw error
-  }
-  if (await adapter.waitForExit(child, TERMINATION_GRACE_MS)) return
-  try { await adapter.kill(groupId, 'SIGKILL') } catch (error) {
+  })
+  const leaderExited = await adapter.waitForExit(child, TERMINATION_GRACE_MS)
+  if (!isGroupAlive(adapter, child)) return
+
+  await adapter.kill(groupId, 'SIGKILL').catch((error) => {
     if (error?.code !== 'ESRCH') throw error
+  })
+  if (leaderExited) await adapter.sleep(0)
+  if (!await adapter.waitForExit(child, TERMINATION_GRACE_MS) || isGroupAlive(adapter, child)) {
+    throw new Error(`POSIX process group ${groupId} still exists after SIGKILL`)
   }
-  await adapter.waitForExit(child, TERMINATION_GRACE_MS)
 }
 
 export async function runDev({
@@ -87,7 +115,14 @@ export async function runDev({
 } = {}) {
   const children = new Set()
   let stopPromise
-  let failure
+  let rejectFailure
+  let failureError
+  const failure = new Promise((resolve, reject) => {
+    rejectFailure = reject
+  })
+  // Consumers race this promise against shutdown; avoid an unhandled rejection if cleanup
+  // is the first observed failure path.
+  failure.catch(() => {})
 
   const start = (args, env) => {
     const child = adapter.spawn('pnpm', args, {
@@ -101,20 +136,34 @@ export async function runDev({
     return child
   }
 
-  const stop = (code) => stopPromise ??= (async () => {
-    for (const child of [...children].reverse()) await terminate(child, adapter)
+  const stop = (code = 0) => stopPromise ??= (async () => {
+    const errors = []
+    for (const child of [...children].reverse()) {
+      try { await terminate(child, adapter) } catch (error) { errors.push(error) }
+    }
+    if (errors.length > 0) {
+      const detail = errors.map((error) => error.message).join('; ')
+      const error = new AggregateError(errors, `Failed to terminate development process tree: ${detail}`)
+      adapter.exit(1)
+      rejectFailure(error)
+      throw error
+    }
     adapter.exit(code)
   })()
 
+  const fail = (error, code = 1) => {
+    failureError ??= error
+    void stop(code).then(
+      () => rejectFailure(error),
+      (cleanupError) => rejectFailure(cleanupError),
+    )
+  }
+
   const watch = (child, name) => {
-    child.once('error', (error) => {
-      failure ??= new Error(`${name} failed to start: ${error.message}`)
-      void stop(1)
-    })
+    child.once('error', (error) => fail(new Error(`${name} failed to start: ${error.message}`), 1))
     child.once('exit', (code, signal) => {
       if (stopPromise) return
-      failure ??= new Error(`${name} exited${signal ? ` from ${signal}` : ` with code ${code ?? 1}`}`)
-      void stop(childExitCode(child))
+      fail(unexpectedExit(child, name), unexpectedExitCode(child))
     })
   }
 
@@ -129,8 +178,7 @@ export async function runDev({
   const healthUrl = `http://${HOST}:${gatewayPort}/health`
   const deadline = adapter.now() + (adapter.deadlineMs ?? 15_000)
   while (adapter.now() <= deadline) {
-    if (failure || hasExited(gateway)) break
-    
+    if (failureError || hasExited(gateway)) break
     try {
       const response = await adapter.fetch(healthUrl)
       if (response.ok) {
@@ -144,7 +192,7 @@ export async function runDev({
   }
 
   let ready = false
-  if (!failure && !hasExited(gateway)) {
+  if (!failureError && !hasExited(gateway)) {
     try {
       const response = await adapter.fetch(healthUrl)
       const body = response.ok ? await response.json() : undefined
@@ -152,12 +200,18 @@ export async function runDev({
     } catch {}
   }
   if (!ready) {
-    const code = hasExited(gateway) ? childExitCode(gateway) : 1
-    const error = failure ?? (hasExited(gateway)
-      ? new Error(`Gateway exited with code ${code} before readiness`)
+    const error = failureError ?? (hasExited(gateway)
+      ? unexpectedExit(gateway, 'Gateway')
       : new Error('Gateway did not provide matching readiness identity'))
-    failure = error
-    await stop(code)
+    await stop(hasExited(gateway) ? unexpectedExitCode(gateway) : 1)
+    failureError ??= error
+    throw error
+  }
+
+  if (adapter.afterReadiness) await adapter.afterReadiness()
+  if (failureError || hasExited(gateway)) {
+    const error = failureError ?? unexpectedExit(gateway, 'Gateway during web handoff')
+    await stop(hasExited(gateway) ? unexpectedExitCode(gateway) : 1)
     throw error
   }
 
@@ -169,11 +223,19 @@ export async function runDev({
     WEB_PORT: String(webPort),
   })
   watch(web, 'Web')
+  if (hasExited(web)) {
+    const error = unexpectedExit(web, 'Web')
+    await stop(unexpectedExitCode(web))
+    throw error
+  }
+  if (hasExited(gateway) || failureError) {
+    const error = failureError ?? unexpectedExit(gateway, 'Gateway during web handoff')
+    await stop(1)
+    throw error
+  }
   console.log(`Web starting at http://${HOST}:${webPort}`)
 
-  if (!keepRunning) {
-    await stop(0)
-    return { stop }
-  }
-  return { stop }
+  const stack = { stop, failure }
+  if (!keepRunning) await stop(0)
+  return stack
 }

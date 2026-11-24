@@ -120,9 +120,9 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1795501070.7518034,
-    "seen": 1795501185.5175488,
-    "ast_hash": "76f1a5d9064ef32c5008b03dc15345fd",
+    "mtime": 1795501434.57076,
+    "seen": 1795501852.4436219,
+    "ast_hash": "def2dc31bdcac9451afc24d4d5b1ede8",
     "semantic_hash": ""
   },
   "packages/inspector-contract/package.json": {
@@ -186,9 +186,9 @@
     "semantic_hash": ""
   },
   "scripts/workspace-shape.test.mjs": {
-    "mtime": 1795501134.0073972,
-    "seen": 1795501185.5175488,
-    "ast_hash": "b6ba079a6fdc083d1a0853d153d0e5e0",
+    "mtime": 1795501440.9592788,
+    "seen": 1795501852.4436219,
+    "ast_hash": "916998d2bac3ab0d1af5b1188f044cd3",
     "semantic_hash": ""
   },
   "tsconfig.base.json": {
@@ -204,9 +204,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1795501110.8659809,
-    "seen": 1795501185.5175488,
-    "ast_hash": "87b98db15122de9f7755c7d349514a50",
+    "mtime": 1795501796.1651185,
+    "seen": 1795501852.4436219,
+    "ast_hash": "a9ebc9cc40a009c3381c67088c57c7e1",
     "semantic_hash": ""
   },
   "apps/web/index.html": {
@@ -348,9 +348,9 @@
     "semantic_hash": ""
   },
   "scripts/dev.mjs": {
-    "mtime": 1795500960.7417705,
-    "seen": 1795501185.5175488,
-    "ast_hash": "892c52d231044cfb738a6fcd7ca5c6dd",
+    "mtime": 1795501488.6923337,
+    "seen": 1795501852.4436219,
+    "ast_hash": "5d97b4d5a628f802eb15b3ce11a77d8c",
     "semantic_hash": ""
   },
   "scripts/assert-web-build-secrets.mjs": {
@@ -366,15 +366,21 @@
     "semantic_hash": ""
   },
   "scripts/dev-runner.mjs": {
-    "mtime": 1795501235.1897557,
-    "seen": 1795501279.4006138,
-    "ast_hash": "52c693788d27b20571f2653a39c6e68f",
+    "mtime": 1795501575.9493287,
+    "seen": 1795501852.4436219,
+    "ast_hash": "d88679d3884048ef8ca412248acba035",
     "semantic_hash": ""
   },
   "scripts/dev-runner.test.mjs": {
-    "mtime": 1795501248.8903983,
-    "seen": 1795501279.4006138,
-    "ast_hash": "cc57a103b11825df788efa9275ebad96",
+    "mtime": 1795501777.66893,
+    "seen": 1795501852.4436219,
+    "ast_hash": "961fa94e89c86fd147560fa3849437e9",
+    "semantic_hash": ""
+  },
+  "scripts/dev-runner-lifecycle.test.mjs": {
+    "mtime": 1795501880.0784235,
+    "seen": 1795501897.0450556,
+    "ast_hash": "e005c77709e87fee6404c0567b19cd0f",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

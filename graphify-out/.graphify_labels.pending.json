@@ -13,7 +13,6 @@
   "11": "Combined MCP Inspector",
   "12": "@tailwindcss/vite",
   "13": "scripts",
-  "14": "validate.ts",
   "15": "dev-runner.mjs",
   "16": "verifier.ts",
   "17": "feature-parity/package.json",
