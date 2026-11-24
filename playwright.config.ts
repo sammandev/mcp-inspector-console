@@ -1,19 +1,16 @@
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
-  testDir: ".",
-  testMatch: "apps/web/e2e/**/*.spec.ts",
+  testDir: "./apps/web/e2e",
+  fullyParallel: true,
   use: {
     baseURL: "http://127.0.0.1:4173",
-    trace: "retain-on-failure",
-    ...devices["Desktop Chrome"],
+    trace: "on-first-retry",
   },
   webServer: {
-    command: "pnpm --filter @combined-mcp-inspector/web exec vite --host 127.0.0.1 --port 4173",
+    command: "pnpm dev",
     url: "http://127.0.0.1:4173",
     reuseExistingServer: false,
-    timeout: 120_000,
+    timeout: 30_000,
   },
-  outputDir: ".superpowers/sdd/2026-11-24-phase-0/playwright-results",
-  reporter: [["list"], ["json", { outputFile: ".superpowers/sdd/2026-11-24-phase-0/playwright-report.json" }]],
 });

@@ -1,8 +1,8 @@
 {
   "apps/gateway/package.json": {
-    "mtime": 1795493729.4962442,
-    "seen": 1795498184.2448032,
-    "ast_hash": "f79291fa8948957ca871313f4c876a6e",
+    "mtime": 1795500613.0867105,
+    "seen": 1795500740.5330327,
+    "ast_hash": "7346d174ab1cfcadb7127520e82b66b2",
     "semantic_hash": ""
   },
   "apps/gateway/src/app.test.ts": {
@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "apps/web/package.json": {
-    "mtime": 1795498546.199536,
-    "seen": 1795499381.4011502,
-    "ast_hash": "83420b21498416be55790855aa8f85a8",
+    "mtime": 1795500557.1439888,
+    "seen": 1795500740.5330327,
+    "ast_hash": "5cf90804eb6946f928caeef91d796b80",
     "semantic_hash": ""
   },
   "apps/web/src/App.test.tsx": {
@@ -120,9 +120,9 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1795499908.9626336,
-    "seen": 1795499946.0460365,
-    "ast_hash": "e7b76b697950d7ac54ab86c8f875a04c",
+    "mtime": 1795500557.117164,
+    "seen": 1795500740.5330327,
+    "ast_hash": "6d9de04eed16be096fe11ef05f170233",
     "semantic_hash": ""
   },
   "packages/inspector-contract/package.json": {
@@ -174,9 +174,9 @@
     "semantic_hash": ""
   },
   "playwright.config.ts": {
-    "mtime": 1795498220.0172079,
-    "seen": 1795498335.5253587,
-    "ast_hash": "f35bf60f9cd780caf4493f44d26a4428",
+    "mtime": 1795500562.80494,
+    "seen": 1795500740.5330327,
+    "ast_hash": "982988ec3ef5950f782af3db37917dff",
     "semantic_hash": ""
   },
   "pnpm-workspace.yaml": {
@@ -186,9 +186,9 @@
     "semantic_hash": ""
   },
   "scripts/workspace-shape.test.mjs": {
-    "mtime": 1795499889.9450479,
-    "seen": 1795499946.0460365,
-    "ast_hash": "acfbf91988b92d5377f48a3c0cdd6f11",
+    "mtime": 1795500505.8596213,
+    "seen": 1795500740.5330327,
+    "ast_hash": "93e75edc93f38f07c22a3cd047d93731",
     "semantic_hash": ""
   },
   "tsconfig.base.json": {
@@ -204,9 +204,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1795492519.2011223,
-    "seen": 1795498184.2448032,
-    "ast_hash": "2e17c0679301e6ecb92c33351d668a58",
+    "mtime": 1795500571.6627066,
+    "seen": 1795500740.5330327,
+    "ast_hash": "b5cb36a2dda85e2ec96f869e72480fcd",
     "semantic_hash": ""
   },
   "apps/web/index.html": {
@@ -330,9 +330,33 @@
     "semantic_hash": ""
   },
   ".superpowers/sdd/2026-11-24-phase-0/task-6-report.md": {
-    "mtime": 1795499965.4467802,
-    "seen": 1795500330.1701791,
-    "ast_hash": "9ff8a328ab4d08995ae76c584e5f89cc",
+    "mtime": 1795500344.7981768,
+    "seen": 1795500740.5330327,
+    "ast_hash": "b8e7dc95a16b620315c86e902b2bf0de",
+    "semantic_hash": ""
+  },
+  "apps/gateway/src/dev.ts": {
+    "mtime": 1795500532.5925212,
+    "seen": 1795500740.5330327,
+    "ast_hash": "831c28a8596171023448324d7aeac321",
+    "semantic_hash": ""
+  },
+  "apps/gateway/tsconfig.dev.json": {
+    "mtime": 1795500609.5807786,
+    "seen": 1795500740.5330327,
+    "ast_hash": "a999afd8de6cc09ec391b5ab52090bce",
+    "semantic_hash": ""
+  },
+  "scripts/dev.mjs": {
+    "mtime": 1795500666.8266766,
+    "seen": 1795500740.5330327,
+    "ast_hash": "78e1d6b39011418327cebf920bb733eb",
+    "semantic_hash": ""
+  },
+  "test-results/.last-run.json": {
+    "mtime": 1795500697.4626622,
+    "seen": 1795500740.5330327,
+    "ast_hash": "f196824657d8858bc7fa44eecbba38b1",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

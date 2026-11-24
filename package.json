@@ -10,7 +10,9 @@
     "test": "node --test scripts/workspace-shape.test.mjs && pnpm -r --if-present test",
     "typecheck": "pnpm -r --if-present typecheck",
     "build": "pnpm -r --if-present build",
-    "dev": "pnpm -r --if-present dev",
+    "dev": "node scripts/dev.mjs",
+    "test:e2e": "playwright test",
+    "verify:phase-0": "pnpm test && pnpm typecheck && pnpm verify:provenance && pnpm build && pnpm test:e2e",
     "verify:provenance": "node --experimental-strip-types scripts/verify-upstream-manifest.ts",
     "generate:provenance": "node --experimental-strip-types scripts/verify-upstream-manifest.ts --write"
   },
