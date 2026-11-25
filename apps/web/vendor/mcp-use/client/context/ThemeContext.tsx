@@ -1,3 +1,4 @@
+// Modified for the combined Inspector: expose whether the theme is forced, and let a non-"system" default replace a saved "system" or unknown choice.
 "use client";
 
 import type { ReactNode } from "react";
@@ -9,6 +10,7 @@ interface ThemeContextType {
   theme: Theme;
   setTheme: (theme: Theme) => void;
   resolvedTheme: "light" | "dark";
+  forced: boolean;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -73,8 +75,15 @@ export function ThemeProvider({
     setMounted(true);
 
     // Use forced theme if provided, otherwise get stored theme or use default
-    const storedTheme = localStorage.getItem(storageKey) as Theme;
-    const initialTheme = forcedTheme || storedTheme || defaultTheme;
+    const storedTheme = localStorage.getItem(storageKey);
+    // Unknown values, and a saved "system" choice when "system" is no longer offered, fall back to the default.
+    const usableStoredTheme =
+      storedTheme === "light" ||
+      storedTheme === "dark" ||
+      (storedTheme === "system" && defaultTheme === "system")
+        ? storedTheme
+        : null;
+    const initialTheme = forcedTheme || usableStoredTheme || defaultTheme;
 
     setTheme(initialTheme);
     applyTheme(initialTheme);
@@ -112,7 +121,14 @@ export function ThemeProvider({
   };
 
   return (
-    <ThemeContext value={{ theme, setTheme: handleSetTheme, resolvedTheme }}>
+    <ThemeContext
+      value={{
+        theme,
+        setTheme: handleSetTheme,
+        resolvedTheme,
+        forced: !!forcedTheme,
+      }}
+    >
       {children}
     </ThemeContext>
   );

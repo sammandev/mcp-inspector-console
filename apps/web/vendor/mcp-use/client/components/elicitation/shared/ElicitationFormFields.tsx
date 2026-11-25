@@ -1,7 +1,15 @@
+// Modified for the combined Inspector: render single-select fields with the styled mcp-use Select.
 import { useMemo } from "react";
 import type { PendingElicitationRequest } from "@/client/types/pending-requests";
 import { Input } from "@/client/components/ui/input";
 import { Label } from "@/client/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/client/components/ui/select";
 import { Textarea } from "@/client/components/ui/textarea";
 import { Checkbox } from "@/client/components/ui/checkbox";
 import { getMultiSelectChoices, getSingleSelectChoices } from "./schemaHelpers";
@@ -127,35 +135,45 @@ export function ElicitationFormFields({
                   placeholder={field.default?.toString() || ""}
                 />
               ) : isSingleSelectChoiceField ? (
-                <select
-                  id={inputId}
-                  data-testid={testId}
+                <Select
                   value={formData[fieldName] || ""}
-                  onChange={(e) => onFieldChange(fieldName, e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  onValueChange={(value) => onFieldChange(fieldName, value)}
                 >
-                  <option value="">Select...</option>
-                  {singleSelectChoices.map((choice) => (
-                    <option key={choice.const} value={choice.const}>
-                      {choice.title || choice.const}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger id={inputId} data-testid={testId} className="w-full">
+                    <SelectValue placeholder="Select..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {singleSelectChoices.map((choice) => (
+                      <SelectItem
+                        key={choice.const}
+                        value={choice.const}
+                        label={choice.title || choice.const}
+                      >
+                        {choice.title || choice.const}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               ) : isEnumField ? (
-                <select
-                  id={inputId}
-                  data-testid={testId}
+                <Select
                   value={formData[fieldName] || ""}
-                  onChange={(e) => onFieldChange(fieldName, e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  onValueChange={(value) => onFieldChange(fieldName, value)}
                 >
-                  <option value="">Select...</option>
-                  {field.enum.map((option: string, index: number) => (
-                    <option key={option} value={option}>
-                      {field.enumNames?.[index] || option}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger id={inputId} data-testid={testId} className="w-full">
+                    <SelectValue placeholder="Select..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {field.enum.map((option: string, index: number) => (
+                      <SelectItem
+                        key={option}
+                        value={option}
+                        label={field.enumNames?.[index] || option}
+                      >
+                        {field.enumNames?.[index] || option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               ) : isUntitledMultiSelectField ? (
                 <div className="space-y-2" data-testid={testId}>
                   {field.items.enum.map((option: string) => {

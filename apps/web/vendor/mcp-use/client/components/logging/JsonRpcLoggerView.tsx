@@ -1,5 +1,20 @@
+// Modified for the combined Inspector: add a Network view with request/response details next to the protocol log, sidebar-style active pills for the Protocol/Network views, and theme-aware selected/expanded states.
 import { McpIcon } from "@/client/components/ui/client-icons";
 import { JSONDisplay } from "@/client/components/shared/JSONDisplay";
+import { TabsSubtle, TabsSubtleItem } from "@/client/components/ui/tabs-subtle";
+import { downloadJson } from "../../../../../src/features/model.js";
+import {
+  NetworkLogList,
+  logDetailsClass,
+  logRowBaseClass,
+  logRowExpandedClass,
+  logRowIdleClass,
+  rpcViewTabClass,
+  rpcViewTabSelectedClass,
+  segmentedSelectedClass,
+  segmentedStateClass,
+  useServerNetworkEntries,
+} from "../../../../../src/features/TrafficLogs.js";
 import { Button } from "@/client/components/ui/button";
 import {
   CheckboxGroup,
@@ -47,6 +62,7 @@ import { toast } from "sonner";
 
 ensureRpcTrafficBridge();
 
+
 interface JsonRpcLoggerViewProps {
   serverIds?: string[];
   onCountChange?: (count: number) => void;
@@ -64,6 +80,9 @@ export function JsonRpcLoggerView({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [view, setView] = useState<0 | 1>(0);
+  const isNetworkView = view === 1;
+  const network = useServerNetworkEntries(serverIds, searchQuery);
   const [sourceFilters, setSourceFilters] = useState<Set<RpcTrafficSource>>(
     () => new Set(["mcp", "widget"])
   );
@@ -192,9 +211,23 @@ export function JsonRpcLoggerView({
     URL.revokeObjectURL(url);
   }, [filteredItems]);
 
+  const copyNetworkEntries = useCallback(async () => {
+    try {
+      await copyToClipboard(JSON.stringify(network.entries, null, 2));
+      toast.success(`Copied ${network.entries.length} requests`);
+    } catch (error) {
+      console.error("Failed to copy network requests:", error);
+      toast.error("Failed to copy to clipboard");
+    }
+  }, [network.entries]);
+
+  const visibleCount = isNetworkView
+    ? network.entries.length
+    : filteredItems.length;
+
   useEffect(() => {
-    onCountChange?.(filteredItems.length);
-  }, [filteredItems.length, onCountChange]);
+    onCountChange?.(visibleCount);
+  }, [visibleCount, onCountChange]);
 
   useEffect(() => {
     if (onClearRef) onClearRef.current = clearMessages;
@@ -212,16 +245,29 @@ export function JsonRpcLoggerView({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="flex shrink-0 items-center justify-between gap-2 pr-2 pt-2 pl-1">
-        <h2 className="text-xs font-medium text-foreground">RPC Logs</h2>
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-2 py-2">
+        <h2 className="sr-only">RPC Logs</h2>
+        <TabsSubtle
+          selectedIndex={view}
+          onSelect={(index) => setView(index === 1 ? 1 : 0)}
+          aria-label="RPC log view"
+          className="min-w-0"
+        >
+          <TabsSubtleItem index={0} label="Protocol" className={cn(rpcViewTabClass, view === 0 && rpcViewTabSelectedClass)} />
+          <TabsSubtleItem index={1} label="Network" className={cn(rpcViewTabClass, view === 1 && rpcViewTabSelectedClass)} />
+        </TabsSubtle>
         <div className="flex items-center gap-0.5">
           <Button
             variant="ghost"
             size="sm"
             className="size-7 p-0"
-            onClick={copyFilteredMessages}
-            disabled={filteredItems.length === 0}
-            aria-label="Copy filtered RPC traffic"
+            onClick={isNetworkView ? copyNetworkEntries : copyFilteredMessages}
+            disabled={visibleCount === 0}
+            aria-label={
+              isNetworkView
+                ? "Copy filtered network requests"
+                : "Copy filtered RPC traffic"
+            }
             title="Copy filtered"
           >
             <Copy className="size-3.5" />
@@ -230,9 +276,23 @@ export function JsonRpcLoggerView({
             variant="ghost"
             size="sm"
             className="size-7 p-0"
-            onClick={downloadFilteredMessages}
-            disabled={filteredItems.length === 0}
-            aria-label="Download filtered RPC traffic as JSON"
+            onClick={
+              isNetworkView
+                ? () =>
+                    downloadJson(
+                      `mcp-network-traffic-${new Date()
+                        .toISOString()
+                        .replaceAll(":", "-")}.json`,
+                      network.entries
+                    )
+                : downloadFilteredMessages
+            }
+            disabled={visibleCount === 0}
+            aria-label={
+              isNetworkView
+                ? "Download filtered network requests as JSON"
+                : "Download filtered RPC traffic as JSON"
+            }
             title="Download JSON"
           >
             <Download className="size-3.5" />
@@ -241,16 +301,20 @@ export function JsonRpcLoggerView({
             variant="ghost"
             size="sm"
             className="size-7 p-0"
-            onClick={clearMessages}
-            disabled={items.length === 0}
-            aria-label="Clear RPC traffic"
+            onClick={isNetworkView ? network.clear : clearMessages}
+            disabled={
+              isNetworkView ? network.entries.length === 0 : items.length === 0
+            }
+            aria-label={
+              isNetworkView ? "Clear network requests" : "Clear RPC traffic"
+            }
             title="Clear"
           >
             <Trash2 className="size-3.5" />
           </Button>
         </div>
       </div>
-      <div className="flex shrink-0 items-center pr-2 pb-2 pt-1 pl-1">
+      <div className="flex shrink-0 items-center px-2 py-2">
         <div className="relative min-w-0 flex-1 transition-[flex-grow] duration-200 ease-out">
           <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -259,15 +323,18 @@ export function JsonRpcLoggerView({
             onFocus={() => setIsSearchFocused(true)}
             onBlur={() => setIsSearchFocused(false)}
             placeholder="Search"
-            aria-label="Search RPC traffic"
+            aria-label={
+              isNetworkView ? "Search network requests" : "Search RPC traffic"
+            }
             className="h-8 w-full pl-7 text-xs shadow-none transition-[width] duration-200 ease-out"
           />
         </div>
         <div
-          aria-hidden={isSearchFocused}
+          aria-hidden={isSearchFocused || isNetworkView}
+          inert={isNetworkView}
           className={cn(
             "shrink-0 overflow-hidden transition-[max-width,opacity,margin] duration-200 ease-out",
-            isSearchFocused
+            isSearchFocused || isNetworkView
               ? "pointer-events-none ml-0 max-w-0 opacity-0"
               : "ml-2 max-w-32 opacity-100"
           )}
@@ -281,6 +348,7 @@ export function JsonRpcLoggerView({
             <CheckboxItem
               index={0}
               label="MCP"
+              className={cn(segmentedStateClass, sourceFilters.has("mcp") && segmentedSelectedClass)}
               size="sm"
               checked={sourceFilters.has("mcp")}
               onToggle={() => toggleSourceFilter("mcp")}
@@ -288,6 +356,7 @@ export function JsonRpcLoggerView({
             <CheckboxItem
               index={1}
               label="UI"
+              className={cn(segmentedStateClass, sourceFilters.has("widget") && segmentedSelectedClass)}
               size="sm"
               checked={sourceFilters.has("widget")}
               onToggle={() => toggleSourceFilter("widget")}
@@ -305,7 +374,13 @@ export function JsonRpcLoggerView({
             "linear-gradient(to bottom, black 0, black calc(100% - 3rem), transparent 100%)",
         }}
       >
-        {filteredItems.length === 0 ? (
+        {isNetworkView ? (
+          <NetworkLogList
+            entries={network.entries}
+            compact
+            testId="rpc-network-log"
+          />
+        ) : filteredItems.length === 0 ? (
           <div className="text-center py-8">
             <div className="text-xs text-muted-foreground">
               {"No messages yet"}
@@ -369,7 +444,11 @@ function RpcLogRow({
         type="button"
         aria-expanded={expanded}
         onClick={onToggle}
-        className="flex h-9 w-full cursor-pointer items-center gap-2 py-2 pr-3 pl-1 text-left text-muted-foreground transition-colors hover:text-foreground"
+        className={cn(
+          logRowBaseClass,
+          "h-9 py-2 pr-3 pl-1",
+          expanded ? logRowExpandedClass : logRowIdleClass
+        )}
       >
         <Tooltip>
           <TooltipTrigger
@@ -441,7 +520,7 @@ function RpcLogRow({
       </button>
 
       {expanded ? (
-        <div className="relative mx-3 mb-2 max-h-44 overflow-auto rounded-lg p-2 pr-8">
+        <div className={cn("relative mx-3 mt-1 mb-2 max-h-44 overflow-auto p-2 pr-8", logDetailsClass)}>
           <JSONDisplay
             data={item.message}
             className="[&_pre]:!text-[10px] [&_pre]:!leading-4"

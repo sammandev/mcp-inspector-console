@@ -1,4 +1,4 @@
-// Modified for the combined Inspector: record transport metadata without changing the connection.
+// Modified for the combined Inspector: record transport metadata without changing the connection, and default to the dark theme.
 import { recordingFetch } from "../../../src/features/network.js";
 import { RequestActionToast } from "@/client/components/shared/RequestActionToast";
 import { DEFAULT_SAMPLING_RESPONSE } from "@/client/types/pending-requests";
@@ -118,7 +118,7 @@ function App() {
   // verifier and discovery record created for this authorization request.
   if (isOAuthCallback) {
     return (
-      <ThemeProvider forcedTheme={forcedTheme || undefined}>
+      <ThemeProvider defaultTheme="dark" forcedTheme={forcedTheme || undefined}>
         <ShapeProvider defaultShape="pill">
           <OAuthCallback />
           <Toaster position="top-center" />
@@ -128,7 +128,7 @@ function App() {
   }
 
   return (
-    <ThemeProvider forcedTheme={forcedTheme || undefined}>
+    <ThemeProvider defaultTheme="dark" forcedTheme={forcedTheme || undefined}>
       <ShapeProvider defaultShape="pill">
         <WidgetDebugProvider>
           <McpClientProvider

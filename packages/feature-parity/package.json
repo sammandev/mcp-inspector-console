@@ -10,7 +10,7 @@
     }
   },
   "scripts": {
-    "test": "vitest run src/catalog.test.ts",
+    "test": "vitest run --config ../../vitest.config.ts src/catalog.test.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "engines": {

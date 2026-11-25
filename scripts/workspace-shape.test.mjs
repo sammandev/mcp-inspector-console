@@ -17,8 +17,8 @@ test('declares the pinned standalone workspace shape and runnable commands', asy
   const gateway = await readJson(new URL('apps/gateway/package.json', root))
   const web = await readJson(new URL('apps/web/package.json', root))
 
-  assert.equal(manifest.packageManager, 'pnpm@12.21.0')
-  assert.equal(manifest.engines?.node, '>=22.23.4')
+  assert.equal(manifest.packageManager, 'pnpm@12.23.0')
+  assert.equal(manifest.engines?.node, '^22.23.4 || ^24.15.0 || >=26.0.0')
   assert.equal(manifest.scripts.dev, 'node scripts/dev.mjs')
   assert.equal(manifest.scripts.test, 'node --test scripts/workspace-shape.test.mjs scripts/dev-runner.test.mjs scripts/dev-runner-lifecycle.test.mjs && pnpm -r --if-present test')
   assert.equal(manifest.scripts.typecheck, 'pnpm -r --if-present typecheck')

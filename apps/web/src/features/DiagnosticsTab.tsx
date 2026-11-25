@@ -1,12 +1,14 @@
 import type { McpServer } from "@mcp-use/client/react";
+import { Activity } from "lucide-react";
 import { useMcpClient } from "@mcp-use/client/react";
 import { useInspector } from "@/client/context/InspectorContext";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { rpcTrafficStore } from "../../vendor/mcp-use/client/rpc-traffic-store.js";
-import { InspectorPage, buttonClass, exportServers, getSelectedConnector, inputClass, stringify } from "./OfficialPanels.js";
+import { InspectorPage, buttonClass, exportServers, getSelectedConnector, inputClass, sectionClass, stringify } from "./OfficialPanels.js";
 import { downloadJson, parseConfiguration, redact, serializeConfiguration, type ServerConfiguration } from "./model.js";
 import { networkStore } from "./network.js";
 import { runLoad } from "./load.js";
+import { StyledSelect } from "./StyledSelect.js";
 import { useInspectorAction } from "./useInspectorAction.js";
 
 type LocalSession = { id: string; name: string };
@@ -82,6 +84,7 @@ export function DiagnosticsTab({ connection }: { connection: McpServer }) {
   return (
     <InspectorPage
       title="Diagnostics"
+      icon={Activity}
       testId="inspector-diagnostics"
       connection={connection}
       result={result}
@@ -89,9 +92,9 @@ export function DiagnosticsTab({ connection }: { connection: McpServer }) {
       busy={busy}
       cancel={cancel}
     >
-      <section aria-labelledby="diagnostics-sessions-title" className="space-y-3">
-        <h3 id="diagnostics-sessions-title" className="text-lg font-semibold">Local sessions</h3>
-        <p className="text-sm text-muted-foreground">
+      <section aria-labelledby="diagnostics-sessions-title" className={sectionClass}>
+        <h3 id="diagnostics-sessions-title" className="text-sm font-medium">Local sessions</h3>
+        <p className="text-xs text-muted-foreground">
           Local stdio processes are launched explicitly. Importing configuration never starts a process.
         </p>
         {action("Refresh sessions", refreshSessions)}
@@ -127,8 +130,8 @@ export function DiagnosticsTab({ connection }: { connection: McpServer }) {
         )}
       </section>
 
-      <section aria-labelledby="diagnostics-config-title" className="space-y-3">
-        <h3 id="diagnostics-config-title" className="text-lg font-semibold">Configuration</h3>
+      <section aria-labelledby="diagnostics-config-title" className={sectionClass}>
+        <h3 id="diagnostics-config-title" className="text-sm font-medium">Configuration</h3>
         <label className="block">
           Server configuration
           <textarea
@@ -190,14 +193,19 @@ export function DiagnosticsTab({ connection }: { connection: McpServer }) {
             return { exported: true };
           })}
         </div>
-        <label className="block">
-          Export format
-          <select className={inputClass} value={exportFormat} onChange={(event) => setExportFormat(event.target.value as "mcp" | "vscode")}>
-            <option value="mcp">mcp.json (mcpServers)</option>
-            <option value="vscode">VS Code (servers)</option>
-          </select>
+        <label className="block space-y-2">
+          <span>Export format</span>
+          <StyledSelect
+            label="Export format"
+            value={exportFormat}
+            onValueChange={(value) => setExportFormat(value as "mcp" | "vscode")}
+            options={[
+              { value: "mcp", label: "mcp.json (mcpServers)" },
+              { value: "vscode", label: "VS Code (servers)" },
+            ]}
+          />
         </label>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Imports accept mcp.json and VS Code configuration. Local command profiles are kept in memory and require explicit launch. Exports redact secrets.
         </p>
         {Object.entries(localProfiles).map(([name, config]) => (
@@ -205,8 +213,8 @@ export function DiagnosticsTab({ connection }: { connection: McpServer }) {
         ))}
       </section>
 
-      <section aria-labelledby="diagnostics-load-title" className="space-y-3">
-        <h3 id="diagnostics-load-title" className="text-lg font-semibold">Load testing</h3>
+      <section aria-labelledby="diagnostics-load-title" className={sectionClass}>
+        <h3 id="diagnostics-load-title" className="text-sm font-medium">Load testing</h3>
         <label className="block">
           Request parameters
           <textarea
@@ -234,9 +242,9 @@ export function DiagnosticsTab({ connection }: { connection: McpServer }) {
         })}
       </section>
 
-      <section aria-labelledby="diagnostics-automation-title" className="space-y-3">
-        <h3 id="diagnostics-automation-title" className="text-lg font-semibold">CLI automation</h3>
-        <p className="text-sm">
+      <section aria-labelledby="diagnostics-automation-title" className={sectionClass}>
+        <h3 id="diagnostics-automation-title" className="text-sm font-medium">CLI automation</h3>
+        <p className="text-xs text-muted-foreground">
           Run requests without the browser with the workspace CLI. Use a local configuration file for stdio and credentials; do not paste credentials into shell history.
         </p>
         <pre className="overflow-auto rounded-xl border border-border p-4 text-sm">{`pnpm inspect --url ${JSON.stringify(redact(connection.url ?? ""))} --method tools/list\npnpm inspect --config mcp.json --server audit --method tools/list\npnpm inspect --url ${JSON.stringify(redact(connection.url ?? ""))} --method tools/call --params '{"name":"tool","arguments":{}}'\npnpm inspect --config mcp.json --list-servers --format text\npnpm inspect --url ${JSON.stringify(redact(connection.url ?? ""))} --method ping --load 100 --concurrency 4 --max-p95-ms 500 --output-file load.json`}</pre>

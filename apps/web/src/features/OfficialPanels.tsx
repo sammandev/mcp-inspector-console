@@ -1,5 +1,11 @@
 import { getViewResourceUri, type McpServer, type Tool } from "@mcp-use/client/react";
 import { useState, type ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
+import {
+  inspectorStickyTabHeaderClass, inspectorTabHeaderPadding, inspectorTabTitleClass,
+} from "../../vendor/mcp-use/client/lib/font-weight.js";
+import { inspectorSettingsContentClass } from "../../vendor/mcp-use/client/lib/inspector-settings-layout.js";
+import { tabHeaderIconClass } from "../../vendor/mcp-use/client/components/shared/ListTabHeader.js";
 import {
   authorizationServerMetadataUrls, decodeJwt, diffJson, lintSchema, maskToken,
 } from "./analysis.js";
@@ -9,6 +15,7 @@ import type { ToolResult } from "../../vendor/mcp-use/client/components/tools/To
 
 export const buttonClass = "inline-flex items-center justify-center rounded-full border border-border px-4 py-2 text-sm hover:bg-muted disabled:opacity-50";
 export const inputClass = "w-full rounded-xl border border-border bg-background p-3 text-sm";
+export const sectionClass = "min-w-0 scroll-mt-20 space-y-4 rounded-xl border border-border p-4";
 export const stringify = (value: unknown) => JSON.stringify(value, null, 2);
 
 export type Action = (name: string, callback: (signal: AbortSignal) => Promise<unknown> | unknown) => ReactNode;
@@ -27,6 +34,7 @@ export function getSelectedConnector(connection: McpServer) {
 
 export function InspectorPage({
   title,
+  icon: Icon,
   testId,
   connection,
   result,
@@ -37,6 +45,7 @@ export function InspectorPage({
   children,
 }: {
   title: string;
+  icon: LucideIcon;
   testId: string;
   connection: McpServer;
   result: unknown;
@@ -46,18 +55,30 @@ export function InspectorPage({
   resultFormat?: "raw" | "structured";
   children: ReactNode;
 }) {
+  const [isScrolled, setIsScrolled] = useState(false);
   return (
-    <section data-testid={testId} className="flex h-full min-h-0 flex-col">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
-        <h2 className="text-lg font-semibold">{title}</h2>
-        <span className="text-sm text-muted-foreground">One connection · {connection.name}</span>
-        {busy && (
-          <button type="button" className={buttonClass} onClick={cancel}>
-            Cancel request
-          </button>
-        )}
+    <section
+      data-testid={testId}
+      className="h-full min-h-0 min-w-0 overflow-auto"
+      onScroll={(event) => setIsScrolled(event.currentTarget.scrollTop > 0)}
+    >
+      <header className={`${inspectorStickyTabHeaderClass(isScrolled)} flex flex-row items-center justify-between gap-2 ${inspectorTabHeaderPadding}`}>
+        <div className="flex min-h-7 min-w-0 items-center gap-2">
+          <h2 className={`${inspectorTabTitleClass} flex items-center gap-1.5`}>
+            <Icon className={tabHeaderIconClass} aria-hidden="true" />
+            {title}
+          </h2>
+        </div>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="min-w-0 truncate text-xs text-muted-foreground" title={connection.name}>One connection · {connection.name}</span>
+          {busy && (
+            <button type="button" className="inline-flex h-7 shrink-0 items-center rounded-full border border-border px-3 text-xs hover:bg-muted" onClick={cancel}>
+              Cancel request
+            </button>
+          )}
+        </div>
       </header>
-      <div className="min-w-0 flex-1 space-y-6 overflow-auto p-4 md:p-6">
+      <div className={`${inspectorSettingsContentClass} text-sm`}>
         {children}
         {error && <p role="alert" className="rounded-xl border border-destructive p-3 text-sm text-destructive">{error}</p>}
         {result !== undefined && (

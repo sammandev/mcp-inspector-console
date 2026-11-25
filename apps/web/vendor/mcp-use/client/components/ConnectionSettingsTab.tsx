@@ -137,7 +137,7 @@ export function ConnectionSettingsTab({
           inlineSections
           cardSections
         />
-        <section className="space-y-4 rounded-xl border border-border p-4">
+        <section id="connection-settings-diagnostics" className="scroll-mt-20 space-y-4 rounded-xl border border-border p-4">
           <div>
             <h3 className="text-sm font-medium">Connection diagnostics settings</h3>
             <p className="text-xs text-muted-foreground">

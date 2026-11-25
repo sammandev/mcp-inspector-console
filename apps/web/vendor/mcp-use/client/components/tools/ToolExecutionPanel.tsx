@@ -1,4 +1,4 @@
-// Modified for the combined Inspector: host tool conformance controls in the native execution pane.
+// Modified for the combined Inspector: host tool conformance controls and the Load test action in the native execution pane.
 import {
   Button,
   buttonExecuteClass,
@@ -25,6 +25,7 @@ import {
   ChevronUp,
   Code,
   Copy,
+  Gauge,
   Play,
   Save,
   X,
@@ -44,6 +45,7 @@ interface ToolExecutionPanelProps {
   onArgChange: (key: string, value: string) => void;
   onExecute: () => void;
   onSave: () => void;
+  onLoadTest?: () => void;
   onCancel?: () => void;
   onBulkPaste?: (pastedText: string, fieldKey: string) => Promise<boolean>;
   autoFilledFields?: Set<string>;
@@ -66,6 +68,7 @@ export function ToolExecutionPanel({
   onArgChange,
   onExecute,
   onSave,
+  onLoadTest,
   onCancel,
   onBulkPaste,
   autoFilledFields,
@@ -255,6 +258,31 @@ export function ToolExecutionPanel({
                   <p>Save request</p>
                 </TooltipContent>
               </Tooltip>
+              {onLoadTest && (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        data-testid="tool-execution-load-test-button"
+                        variant="outline"
+                        onClick={onLoadTest}
+                        disabled={isExecuting || !isConnected}
+                        size="sm"
+                        className={cn(buttonToolbarClass, compactIconOnlyClass)}
+                        title="Load test"
+                        aria-label="Load test"
+                      >
+                        <Gauge />
+                        <span className={compactLabelClass}>Load test</span>
+                      </Button>
+                    }
+                    nativeButton
+                  />
+                  <TooltipContent>
+                    <p>Repeat this call to measure throughput and latency</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
               {isExecuting && onCancel ? (
                 <Tooltip open={showCancelButton ? undefined : false}>
                   <TooltipTrigger

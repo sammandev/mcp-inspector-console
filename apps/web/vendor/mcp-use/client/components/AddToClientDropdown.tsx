@@ -1,3 +1,4 @@
+// Modified for the combined Inspector: add OpenCode as an Add to Client target.
 import { MCPAddToClientEvent, captureInspectorEvent } from "@/client/telemetry";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -19,6 +20,8 @@ import {
   downloadMcpbFile,
   generateClaudeCodeCommand,
   generateCodexConfig,
+  generateOpenCodeCommand,
+  generateOpenCodeConfig,
   generateCursorDeepLink,
   generateGeminiCLICommand,
   generateVSCodeDeepLink,
@@ -52,6 +55,7 @@ interface AddToClientDropdownProps {
     claudeCode?: boolean;
     geminiCli?: boolean;
     codexCli?: boolean;
+    openCode?: boolean;
   };
   className?: string;
   onSuccess?: (client: string) => void;
@@ -61,7 +65,12 @@ interface AddToClientDropdownProps {
     | ((props: { isOpen: boolean; onClick: () => void }) => React.ReactNode);
 }
 
-type ClientType = "claude-code" | "gemini-cli" | "codex-cli" | null;
+type ClientType =
+  | "claude-code"
+  | "gemini-cli"
+  | "codex-cli"
+  | "opencode"
+  | null;
 
 const clientMenuItemClassName = "flex h-10 items-center gap-2";
 
@@ -95,6 +104,7 @@ export function AddToClientDropdown({
     claudeCode: true,
     geminiCli: true,
     codexCli: true,
+    openCode: true,
   },
   className = "",
   onSuccess,
@@ -104,6 +114,7 @@ export function AddToClientDropdown({
   const [showModal, setShowModal] = useState(false);
   const [selectedClient, setSelectedClient] = useState<ClientType>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedText, setCopiedText] = useState("");
 
   const { url, name, headers } = serverConfig;
 
@@ -182,9 +193,16 @@ export function AddToClientDropdown({
     setShowModal(true);
   };
 
+  const handleOpenCodeClick = () => {
+    trackAddToClient("opencode");
+    setSelectedClient("opencode");
+    setShowModal(true);
+  };
+
   const handleCopy = async (text: string) => {
     try {
       await copyToClipboard(text);
+      setCopiedText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
@@ -415,6 +433,103 @@ export function AddToClientDropdown({
       );
     }
 
+    if (selectedClient === "opencode") {
+      const { command } = generateOpenCodeCommand(url, name, headers);
+      const { config, envVars } = generateOpenCodeConfig(url, name, headers);
+      const copyButton = (text: string, label: string) => (
+        <div className="absolute top-2 right-2 z-10">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 bg-background hover:bg-accent border border-border"
+            onClick={() => handleCopy(text)}
+            aria-label={label}
+          >
+            {copied && copiedText === text ? (
+              <Check className="size-3.5 text-green-600" />
+            ) : (
+              <Copy className="size-3.5" />
+            )}
+          </Button>
+        </div>
+      );
+
+      return (
+        <>
+          <DialogHeader>
+            <DialogTitle>Add to OpenCode</DialogTitle>
+            <DialogDescription>
+              Run this command in your project, or add the configuration to{" "}
+              <code className="text-foreground">opencode.json</code>.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody className="space-y-4">
+            <div>
+              <h5 className="font-semibold text-sm mb-2">Instructions</h5>
+              <p className="text-xs text-muted-foreground">
+                Run this command in your terminal. Add{" "}
+                <code className="text-foreground">--global</code> to make the
+                server available in every project:
+              </p>
+            </div>
+
+            <div className="relative">
+              {copyButton(command, "Copy command")}
+              <pre className="bg-muted p-3 pr-14 rounded-md text-xs overflow-x-auto">
+                <code>{command}</code>
+              </pre>
+            </div>
+
+            <div>
+              <h5 className="font-semibold text-sm mb-2">Or add it manually</h5>
+              <p className="text-xs text-muted-foreground">
+                Merge the <code className="text-foreground">mcp.servers</code>{" "}
+                entry below into{" "}
+                <code className="text-foreground">opencode.json</code> (project)
+                or{" "}
+                <code className="text-foreground">
+                  ~/.config/opencode/opencode.json
+                </code>{" "}
+                (global):
+              </p>
+            </div>
+
+            <div className="relative">
+              {copyButton(config, "Copy configuration")}
+              <pre className="bg-muted p-3 pr-14 rounded-md text-xs overflow-x-auto">
+                <code>{config}</code>
+              </pre>
+            </div>
+
+            {envVars.length > 0 && (
+              <div>
+                <h5 className="font-semibold text-sm mb-2">
+                  Environment variables
+                </h5>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Header values are read from these variables so secrets stay
+                  out of the file:
+                </p>
+                <ul className="list-disc pl-5 text-xs text-muted-foreground">
+                  {envVars.map(({ name: envVar, header }) => (
+                    <li key={envVar}>
+                      <code className="text-foreground">{envVar}</code> for{" "}
+                      <code className="text-foreground">{header}</code>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              Then run <code className="text-foreground">opencode mcp list</code>{" "}
+              to check the connection.
+            </p>
+          </DialogBody>
+        </>
+      );
+    }
+
     return null;
   };
 
@@ -570,6 +685,22 @@ export function AddToClientDropdown({
               />
               <span className="min-w-0 max-w-full whitespace-nowrap">
                 Codex CLI
+              </span>
+            </DropdownMenuItem>
+          )}
+
+          {showClients.openCode && (
+            <DropdownMenuItem
+              onClick={handleOpenCodeClick}
+              className={clientMenuItemClassName}
+            >
+              <img
+                src="https://cdn.simpleicons.org/opencode"
+                alt="OpenCode"
+                className="h-4 w-4 dark:invert"
+              />
+              <span className="min-w-0 max-w-full whitespace-nowrap">
+                OpenCode
               </span>
             </DropdownMenuItem>
           )}

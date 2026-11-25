@@ -1,8 +1,8 @@
+// Modified for the combined Inspector: the RPC Panel switch, theme toggle and Command Palette moved to the header, so the sidebar footer is gone.
 import { cn } from "@/client/lib/utils";
 import type { TabType } from "@/client/context/InspectorContext";
 import type { McpServer } from "@mcp-use/client/react";
 import { SidebarRail } from "../SidebarRail";
-import { InspectorSidebarFooter } from "./InspectorSidebarFooter";
 import { InspectorSidebarNav } from "./InspectorSidebarNav";
 import { SidebarProximityNav } from "./SidebarProximityNav";
 
@@ -13,10 +13,7 @@ interface InspectorSidebarProps {
   visibleTabs?: TabType[];
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
-  rpcLoggerOpen: boolean;
-  onRpcLoggerOpenChange: (open: boolean) => void;
   embedded?: boolean;
-  onCommandPaletteOpen: () => void;
 }
 
 export function InspectorSidebar({
@@ -26,10 +23,6 @@ export function InspectorSidebar({
   visibleTabs,
   collapsed,
   onCollapsedChange,
-  rpcLoggerOpen,
-  onRpcLoggerOpenChange,
-  embedded = false,
-  onCommandPaletteOpen,
 }: InspectorSidebarProps) {
   return (
     <aside
@@ -54,14 +47,6 @@ export function InspectorSidebar({
           />
         </SidebarProximityNav>
       </div>
-      {!embedded && (
-        <InspectorSidebarFooter
-          collapsed={collapsed}
-          rpcLoggerOpen={rpcLoggerOpen}
-          onRpcLoggerOpenChange={onRpcLoggerOpenChange}
-          onCommandPaletteOpen={onCommandPaletteOpen}
-        />
-      )}
       <SidebarRail
         collapsed={collapsed}
         onToggle={() => onCollapsedChange(!collapsed)}

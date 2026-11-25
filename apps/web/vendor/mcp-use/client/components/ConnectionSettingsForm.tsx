@@ -1,3 +1,4 @@
+// Modified for the combined Inspector: give the Connection Settings cards stable ids for Command Palette navigation.
 import { Button } from "@/client/components/ui/button";
 import {
   Card,
@@ -581,14 +582,14 @@ export function ConnectionSettingsForm({
     return (
       <div className="relative space-y-6 @container" {...formShellProps}>
         {copyConfigButton}
-        <Card className="border">
+        <Card id="connection-settings-endpoint" className="border scroll-mt-20">
           <CardHeader>
             <CardTitle className="text-base font-medium">Endpoint</CardTitle>
             <CardDescription>MCP server URL and display alias</CardDescription>
           </CardHeader>
           <CardContent className="pt-0">{endpointFields}</CardContent>
         </Card>
-        <Card className="border">
+        <Card id="connection-settings-configuration" className="border scroll-mt-20">
           <CardHeader>
             <CardTitle className="text-base font-medium">
               Configuration
@@ -599,7 +600,7 @@ export function ConnectionSettingsForm({
           </CardHeader>
           <CardContent className="pt-0">{configurationFields}</CardContent>
         </Card>
-        <Card className="border">
+        <Card id="connection-settings-authentication" className="border scroll-mt-20">
           <CardHeader>
             <CardTitle className="text-base font-medium">
               Authentication
@@ -608,7 +609,7 @@ export function ConnectionSettingsForm({
           </CardHeader>
           <CardContent className="pt-0">{authenticationFields}</CardContent>
         </Card>
-        <Card className="border">
+        <Card id="connection-settings-headers" className="border scroll-mt-20">
           <CardHeader>
             <CardTitle className="text-base font-medium">
               Custom Headers

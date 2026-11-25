@@ -5,6 +5,15 @@ Inspector UI/UX at `/mcp/inspector` and integrates Official MCP Inspector
 workflows into four focused destinations in the same interface and styling.
 The original workspace scaffold remains at `/workspace`.
 
+The four additional destinations share the native menu icons, compact sticky
+headers (with a divider only after scrolling), and bordered settings sections.
+RPC tabs, source filters, and expanded log rows use theme-aware highlights and
+keyboard-focus indicators. The command palette retains documentation and
+navigation commands but omits website and Discord promotion entries. The top
+header provides a search box that opens the command palette and a one-click
+Light/Dark theme toggle (dark by default). "Add to Client" and the Command Palette's "Open in OpenCode" provide an
+`opencode mcp add` command; the Add to Client dialog also shows the equivalent `opencode.json` snippet.
+
 ## What is included
 
 - **Native mcp-use workflows:** tools, prompts, resources, chat, skills, MCP
@@ -15,13 +24,23 @@ The original workspace scaffold remains at `/workspace`.
   and marked `Modified for the combined Inspector:`.
 - **Protocol:** raw and batched JSON-RPC requests, pagination, filterable
   traffic and request history, plus redacted Network and Console diagnostics.
+  Protocol rows pair each request with its status, duration, parameters, and
+  response; Network rows record the URL, HTTP status, timing, and redacted
+  request/response headers and bodies (`mcp-protocol-version`,
+  `mcp-session-id`, and so on). The RPC panel, toggled from the header beside
+  Sign in and resizable by dragging its left edge, offers the same Protocol and
+  Network views, and every log can be exported as JSON.
 - **Auth:** protected-resource and authorization-server discovery,
   authentication actions, masked tokens and JWT claims, and token revocation.
 - **Client:** validated Roots and Tasks workflows on the selected connection.
 - **Diagnostics:** local sessions and stderr, redacted configuration import and
-  export, explicit stdio launch with `cwd`, load testing, and CLI automation.
+  export, explicit stdio launch with `cwd`, a gated ping load test, and CLI
+  automation.
 - **Native-tab integrations:** Tools includes run history, replay/edit/diff,
-  output validation, schema lint, and MCP App metadata checks; Prompts and Resources
+  output validation, schema lint, MCP App metadata checks, and a per-tool
+  **Load test** (concurrency, rate, duration or request count, warm-up,
+  stepped stages, weighted multi-call scenarios, latency percentiles, error
+  breakdowns, and JSON export) that runs inside the result panel; Prompts and Resources
   provide contextual completions; Resources owns subscriptions; Notifications
   owns log filtering, `logging/setLevel`, and export; Skills supports
   verification; Connection Settings and Server Metadata remain canonical for
@@ -61,8 +80,8 @@ or an unmet exact-JSON assertion. `--transport sse` selects legacy SSE.
 
 ## Prerequisites
 
-- Node.js >= 22.23.4
-- pnpm 12.21.0
+- Node.js ^22.23.4, ^24.15.0, or >= 26.0.0
+- pnpm 12.23.0
 
 ## Workspace commands
 
@@ -84,6 +103,20 @@ pnpm verify:phase-0
 http://127.0.0.1:4173/mcp/inspector?server=http%3A%2F%2Flocalhost%3A3000%2Fmcp
 ```
 
+If startup reports `EADDRINUSE`, a process already owns the requested port.
+Stop an old development run with `Ctrl+C` in its original terminal, or choose
+unused ports for a separate run. In PowerShell:
+
+```powershell
+$env:DEV_GATEWAY_PORT = "3101"
+$env:DEV_WEB_PORT = "4273"
+pnpm dev
+```
+
+With those settings, open `http://127.0.0.1:4273/mcp/inspector`. Remove the
+two environment variables to restore the defaults. Restart development
+servers after dependency updates so they load the newly installed packages.
+
 Without a `server` parameter, no default server is configured. The Inspector
 can still restore connections saved in browser storage. Select a connected
 server and open **Protocol**, **Auth**, **Client**, or **Diagnostics** for the
@@ -103,7 +136,9 @@ The Inspector uses the forked mcp-use client, the upstream mcp-use proxy, and
 the local stdio relay; see [feature parity](docs/feature-parity.md) and
 [upstream provenance](docs/upstream-provenance.md). The upstream Start
 Tunnel control requires an `mcp-use dev` server and is unavailable in this
-standalone mount. The previous offline scaffold is at
+standalone mount. The fork omits the upstream manufact.com deployment promo,
+the GitHub/Discord sidebar links, and the header Deploy button. The previous
+offline scaffold is at
 `http://127.0.0.1:4173/workspace`.
 
 Each development run generates a random ephemeral gateway bearer token and

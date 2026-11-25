@@ -10,7 +10,7 @@
     }
   },
   "scripts": {
-    "test": "pnpm run typecheck && pnpm run test:consumer && vitest run src/session.test.ts src/security.test.ts",
+    "test": "pnpm run typecheck && pnpm run test:consumer && vitest run --config ../../vitest.config.ts src/session.test.ts src/security.test.ts",
     "test:consumer": "tsc -p test-d/tsconfig.json",
     "typecheck": "tsc -p tsconfig.json"
   },

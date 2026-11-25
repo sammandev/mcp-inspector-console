@@ -1,4 +1,6 @@
+// Modified for the combined Inspector: removed the manufact.com Deploy call to action, added the RPC Panel switch and a light/dark theme toggle beside Sign in, and a search box that opens the Command Palette.
 import { Button } from "@/client/components/ui/button";
+import { Switch } from "@/client/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import type { TabType } from "@/client/context/InspectorContext";
 import { useInspector } from "@/client/context/InspectorContext";
@@ -18,7 +20,6 @@ import type { McpServer } from "@mcp-use/client/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { HostedUserMenu } from "@/client/components/HostedUserMenu";
-import { MCPDeployClickEvent, captureInspectorEvent } from "@/client/telemetry";
 import { TabCountBadge } from "./shared/TabCountBadge";
 import { AddToClientDropdown } from "./AddToClientDropdown";
 import LogoAnimated from "./LogoAnimated";
@@ -31,7 +32,14 @@ import {
   SKILLS_EMPTY_CATALOG_MESSAGE,
   SKILLS_UNSUPPORTED_MESSAGE,
 } from "./layout/layoutHeaderUtils";
+
+const rpcSwitchUncheckedTrack =
+  "color-mix(in oklab, var(--foreground) 22%, var(--background))";
+const rpcSwitchUncheckedTrackHover =
+  "color-mix(in oklab, var(--foreground) 30%, var(--background))";
 import { getInspectorHeaderClassName } from "./layout/inspectorLayoutClasses";
+import { HeaderCommandSearch } from "../../../../src/features/HeaderCommandSearch.js";
+import { HeaderThemeToggle } from "../../../../src/features/HeaderThemeToggle.js";
 import { LAYOUT_TABS } from "./layout/layoutTabs";
 import { ServerUrlChip } from "./layout/ServerUrlChip";
 import { TunnelStartButton } from "./layout/TunnelBadge";
@@ -46,6 +54,9 @@ interface LayoutHeaderProps {
   onTabChange: (tab: TabType) => void;
   embedded?: boolean;
   sidebarCollapsed?: boolean;
+  rpcLoggerOpen?: boolean;
+  onRpcLoggerOpenChange?: (open: boolean) => void;
+  onCommandPaletteOpen?: () => void;
 }
 
 export function LayoutHeader({
@@ -56,6 +67,9 @@ export function LayoutHeader({
   onTabChange,
   embedded = false,
   sidebarCollapsed = false,
+  rpcLoggerOpen = false,
+  onRpcLoggerOpenChange,
+  onCommandPaletteOpen,
 }: LayoutHeaderProps) {
   const {
     tunnelUrl,
@@ -64,7 +78,6 @@ export function LayoutHeader({
     setIsTunnelStarting,
     embeddedConfig,
   } = useInspector();
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [mobileTabsCollapsed] = useState(true);
 
   const tunnelPopover = useTunnelPopoverOpen(tunnelUrl);
@@ -185,27 +198,18 @@ export function LayoutHeader({
               </>
             );
           })()}
-        <a
-          href={
-            isLoggedIn
-              ? "https://manufact.com/cloud?ref=mcp-use-inspector"
-              : "https://manufact.com/signup?ref=mcp-use-inspector"
-          }
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={() => {
-            try {
-              captureInspectorEvent(
-                new MCPDeployClickEvent({ referrer: "mcp-use-inspector" })
-              ).catch(() => {});
-            } catch {
-              // ignore
-            }
-          }}
-          className="inline-flex h-8 items-center justify-center rounded-full border border-blue-500/25 bg-blue-500/10 px-4 text-[13px] text-blue-500 outline-none cursor-pointer transition-colors hover:bg-blue-500/15 dark:border-blue-400/30 dark:bg-blue-400/10 dark:text-blue-400 dark:hover:bg-blue-400/15 focus-visible:ring-1 focus-visible:ring-ring"
-        >
-          <span className="[text-box:trim-both_cap_alphabetic]">Deploy</span>
-        </a>
+        {selectedServer && onRpcLoggerOpenChange && (
+          <Switch
+            label="RPC Panel"
+            checked={rpcLoggerOpen}
+            onToggle={() => onRpcLoggerOpenChange(!rpcLoggerOpen)}
+            uncheckedTrackColor={rpcSwitchUncheckedTrack}
+            uncheckedTrackColorHovered={rpcSwitchUncheckedTrackHover}
+            className="shrink-0 flex-row-reverse gap-2 text-sm"
+            data-testid="header-rpc-panel-switch"
+          />
+        )}
+        <HeaderThemeToggle />
         {renderLoginButton()}
       </div>
     );
@@ -215,7 +219,6 @@ export function LayoutHeader({
     embeddedConfig.chatApiUrl ? (
       <HostedUserMenu
         chatApiUrl={embeddedConfig.chatApiUrl}
-        onUserResolved={(u) => setIsLoggedIn(!!u)}
         compact={compact}
       />
     ) : null;
@@ -255,6 +258,9 @@ export function LayoutHeader({
             </>
           )}
         </div>
+        {!embedded && onCommandPaletteOpen && (
+          <HeaderCommandSearch onOpen={onCommandPaletteOpen} />
+        )}
         {renderActionButtons()}
       </div>
 
@@ -282,7 +288,10 @@ export function LayoutHeader({
                   />
                 </div>
               </div>
-              <div className="shrink-0">{renderLoginButton(true)}</div>
+              <div className="flex shrink-0 items-center gap-1">
+                <HeaderThemeToggle />
+                {renderLoginButton(true)}
+              </div>
             </>
           )}
         </div>

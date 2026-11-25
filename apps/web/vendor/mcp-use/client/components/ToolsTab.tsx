@@ -1,4 +1,4 @@
-// Modified for the combined Inspector: add selected-tool conformance and run history.
+// Modified for the combined Inspector: add selected-tool conformance, run history and the per-tool Load test shown in the result panel.
 import { Button } from "@/client/components/ui/button";
 import {
   ResizableHandle,
@@ -40,7 +40,9 @@ import { useSavedRequests } from "@/client/hooks/useSavedRequests";
 import { useToolExecution } from "./tools/useToolExecution";
 import { useToolsTabNavigation } from "./tools/useToolsTabNavigation";
 import { ToolConformancePanel } from "../../../../src/features/OfficialPanels.js";
+import { ToolLoadTestPanel } from "../../../../src/features/ToolLoadTestPanel.js";
 import { validateToolOutput } from "../../../../src/features/analysis.js";
+import { cn } from "@/client/lib/utils";
 
 const TOOL_EXEC_TOP_MIN_PX = 200;
 /** Response header + widget padding + MCPAppsDebugControls row (h-8 + top-2). */
@@ -586,11 +588,19 @@ export function ToolsTab({
     if (isMobile) setMobileView("detail");
   }, [handleToolSelect, isMobile, setMobileView, tools]);
 
+  // "hidden" keeps a load test (and its summary) mounted while a normal run's response is shown.
+  const [loadTestView, setLoadTestView] = useState<"closed" | "shown" | "hidden">("closed");
+  const showToolResponse = useCallback(
+    () => setLoadTestView((view) => (view === "shown" ? "hidden" : view)),
+    []
+  );
+
   const replayToolRun = useCallback((run: ToolResult) => {
+    showToolResponse();
     void replayTool(run).catch((error) => {
       toast.error(error instanceof Error ? error.message : String(error));
     });
-  }, [replayTool]);
+  }, [replayTool, showToolResponse]);
 
   const getOutputValidation = useCallback((run: ToolResult) => {
     if (!selectedTool?.outputSchema) return { available: false, valid: false, findings: [] };
@@ -605,6 +615,36 @@ export function ToolsTab({
       onReplay={replayToolRun}
     />
   ) : null;
+
+  const openLoadTest = useCallback(() => {
+    setLoadTestView("shown");
+    if (isMobile) setMobileView("response");
+  }, [isMobile, setMobileView]);
+  const closeLoadTest = useCallback(() => setLoadTestView("closed"), []);
+  const executeToolFromForm = useCallback(() => {
+    showToolResponse();
+    return executeTool();
+  }, [executeTool, showToolResponse]);
+  const loadTool = useMemo(() => {
+    if (!selectedTool) return undefined;
+    const required = (selectedTool.inputSchema?.required ?? []) as string[];
+    return {
+      name: selectedTool.name,
+      args: payloadToSend,
+      argsReady: required.every((key) => key in payloadToSend),
+    };
+  }, [selectedTool, payloadToSend]);
+  const withLoadTest = (resultDisplay: React.ReactNode) =>
+    loadTestView === "closed" ? (
+      resultDisplay
+    ) : (
+      <>
+        <div className={cn("h-full", loadTestView !== "shown" && "hidden")}>
+          <ToolLoadTestPanel onClose={closeLoadTest} serverId={serverId} tool={loadTool} />
+        </div>
+        {loadTestView !== "shown" && resultDisplay}
+      </>
+    );
 
   const openSaveDialog = useCallback(() => {
     if (!selectedTool) return;
@@ -801,8 +841,9 @@ export function ToolsTab({
                   isExecuting={isExecuting}
                   isConnected={isConnected}
                   onArgChange={handleArgChange}
-                  onExecute={executeTool}
+                  onExecute={executeToolFromForm}
                   onSave={openSaveDialog}
+                  onLoadTest={openLoadTest}
                   onBulkPaste={handleBulkPaste}
                   autoFilledFields={autoFilledFields}
                   setFields={setFields}
@@ -821,7 +862,7 @@ export function ToolsTab({
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
                 className="absolute inset-0 bg-background z-20"
               >
-                <ToolResultDisplay
+                {withLoadTest(<ToolResultDisplay
                   results={filteredResults}
                   copiedResult={copiedResult}
                   serverId={serverId}
@@ -839,7 +880,7 @@ export function ToolsTab({
                   isAuthenticating={isAuthorizing}
                   authorizationError={authorizationError}
                   getOutputValidation={getOutputValidation}
-                />
+                />)}
               </motion.div>
             )}
           </AnimatePresence>
@@ -1005,8 +1046,9 @@ export function ToolsTab({
               isExecuting={isExecuting}
               isConnected={isConnected}
               onArgChange={handleArgChange}
-              onExecute={executeTool}
+              onExecute={executeToolFromForm}
               onSave={openSaveDialog}
+              onLoadTest={openLoadTest}
               onCancel={cancelExecution}
               onBulkPaste={handleBulkPaste}
               autoFilledFields={autoFilledFields}
@@ -1024,7 +1066,7 @@ export function ToolsTab({
             panelRef={resultPanelRef}
           >
             <div className="flex flex-col h-full">
-              <ToolResultDisplay
+              {withLoadTest(<ToolResultDisplay
                 results={filteredResults}
                 copiedResult={copiedResult}
                 serverId={serverId}
@@ -1043,7 +1085,7 @@ export function ToolsTab({
                 isAuthenticating={isAuthorizing}
                 authorizationError={authorizationError}
                 getOutputValidation={getOutputValidation}
-              />
+              />)}
             </div>
           </ResizablePanel>
         </ResizablePanelGroup>

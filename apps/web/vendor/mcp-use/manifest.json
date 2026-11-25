@@ -382,10 +382,6 @@
       "sha256": "3844ed725bc91f425c7ba2443da9324c1358baefd4d798e8440dc5ee79205881"
     },
     {
-      "path": "client/components/layout/sidebar/InspectorSidebarFooter.tsx",
-      "sha256": "318e98d6f1ddc02ac22cd6e695840f15498e343f5fbb64ab9666c01569ea9c10"
-    },
-    {
       "path": "client/components/layout/sidebar/InspectorSidebarNav.tsx",
       "sha256": "c7e06a47eaa69e34795a54fa84f7e5997f1cda7115cf6208ea077478afe981a9"
     },
@@ -1160,22 +1156,33 @@
   ],
   "modified": [
     "client/App.tsx",
+    "client/components/AddToClientDropdown.tsx",
+    "client/components/CommandPalette.tsx",
+    "client/components/ConnectionSettingsForm.tsx",
     "client/components/ConnectionSettingsTab.tsx",
     "client/components/Layout.tsx",
     "client/components/LayoutContent.tsx",
+    "client/components/LayoutHeader.tsx",
     "client/components/NotificationsTab.tsx",
     "client/components/PromptsTab.tsx",
     "client/components/ResourcesTab.tsx",
     "client/components/ServerMetadataPanel.tsx",
-    "client/components/shared/SearchTabHeader.tsx",
     "client/components/ToolsTab.tsx",
+    "client/components/elicitation/shared/ElicitationFormFields.tsx",
     "client/components/layout/layoutTabs.ts",
+    "client/components/layout/mobile/MobileInspectorToolbar.tsx",
+    "client/components/layout/sidebar/InspectorSidebar.tsx",
+    "client/components/layout/sidebar/SidebarRpcPanel.tsx",
+    "client/components/logging/JsonRpcLoggerView.tsx",
     "client/components/prompts/PromptExecutionPanel.tsx",
     "client/components/prompts/PromptInputForm.tsx",
+    "client/components/shared/SearchTabHeader.tsx",
     "client/components/tools/ToolExecutionPanel.tsx",
     "client/components/tools/ToolResultDisplay.tsx",
     "client/components/tools/useToolExecution.ts",
     "client/context/InspectorContext.tsx",
-    "client/utils/connectionUpdates.ts"
+    "client/context/ThemeContext.tsx",
+    "client/utils/connectionUpdates.ts",
+    "client/utils/mcpClientUtils.ts"
   ]
 }

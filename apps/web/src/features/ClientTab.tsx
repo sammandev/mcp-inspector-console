@@ -1,8 +1,9 @@
 import type { McpServer } from "@mcp-use/client/react";
+import { Cable } from "lucide-react";
 import { useInspector } from "@/client/context/InspectorContext";
 import { useState } from "react";
 import { parseParameters, parseRoots } from "./model.js";
-import { InspectorPage, buttonClass, getSelectedConnector, inputClass, stringify } from "./OfficialPanels.js";
+import { InspectorPage, buttonClass, getSelectedConnector, inputClass, sectionClass, stringify } from "./OfficialPanels.js";
 import { useInspectorAction } from "./useInspectorAction.js";
 
 export function ClientTab({ connection }: { connection: McpServer }) {
@@ -26,6 +27,7 @@ export function ClientTab({ connection }: { connection: McpServer }) {
   return (
     <InspectorPage
       title="Client"
+      icon={Cable}
       testId="inspector-client"
       connection={connection}
       result={result}
@@ -33,8 +35,8 @@ export function ClientTab({ connection }: { connection: McpServer }) {
       busy={busy}
       cancel={cancel}
     >
-      <section aria-labelledby="client-roots-title" className="space-y-3">
-        <h3 id="client-roots-title" className="text-lg font-semibold">Roots</h3>
+      <section aria-labelledby="client-roots-title" className={sectionClass}>
+        <h3 id="client-roots-title" className="text-sm font-medium">Roots</h3>
         <label className="block">
           Root directories
           <textarea
@@ -49,13 +51,13 @@ export function ClientTab({ connection }: { connection: McpServer }) {
           await getSelectedConnector(connection).setRoots(value);
           return value;
         })}
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Roots advertise file URIs to the server; they do not grant filesystem access to this browser.
         </p>
       </section>
 
-      <section aria-labelledby="client-tasks-title" className="space-y-3">
-        <h3 id="client-tasks-title" className="text-lg font-semibold">Tasks</h3>
+      <section aria-labelledby="client-tasks-title" className={sectionClass}>
+        <h3 id="client-tasks-title" className="text-sm font-medium">Tasks</h3>
         <label className="block">
           Task id
           <input className={inputClass} value={taskId} onChange={(event) => setTaskId(event.target.value)} />
@@ -81,7 +83,7 @@ export function ClientTab({ connection }: { connection: McpServer }) {
         </label>
         {action("Run tool as task", (signal) =>
           request("tools/call", parseParameters(taskArguments), signal))}
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Task methods require server support. Unsupported operations show the server's response without affecting the selected connection.
         </p>
       </section>

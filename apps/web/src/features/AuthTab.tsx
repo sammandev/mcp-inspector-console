@@ -1,7 +1,8 @@
 import type { McpServer } from "@mcp-use/client/react";
+import { ShieldCheck } from "lucide-react";
 import { useInspector } from "@/client/context/InspectorContext";
 import { useInspectorAction } from "./useInspectorAction.js";
-import { OAuthDetails, InspectorPage, buttonClass, stringify } from "./OfficialPanels.js";
+import { OAuthDetails, InspectorPage, buttonClass, sectionClass, stringify } from "./OfficialPanels.js";
 import { redact } from "./model.js";
 
 export function AuthTab({ connection }: { connection: McpServer }) {
@@ -20,6 +21,7 @@ export function AuthTab({ connection }: { connection: McpServer }) {
   return (
     <InspectorPage
       title="Auth"
+      icon={ShieldCheck}
       testId="inspector-auth"
       connection={connection}
       result={result}
@@ -27,8 +29,8 @@ export function AuthTab({ connection }: { connection: McpServer }) {
       busy={busy}
       cancel={cancel}
     >
-      <section aria-labelledby="auth-state-title" className="space-y-3">
-        <h3 id="auth-state-title" className="text-lg font-semibold">Authentication state</h3>
+      <section aria-labelledby="auth-state-title" className={sectionClass}>
+        <h3 id="auth-state-title" className="text-sm font-medium">Authentication state</h3>
         <pre className="overflow-auto rounded-xl border border-border bg-muted/30 p-4 text-sm">
           {stringify(redact({ authorization: connection.authorization, userInfo: connection.userInfo }))}
         </pre>
@@ -53,9 +55,9 @@ export function AuthTab({ connection }: { connection: McpServer }) {
           })}
         </div>
       </section>
-      <section aria-labelledby="auth-discovery-title" className="space-y-3">
-        <h3 id="auth-discovery-title" className="text-lg font-semibold">OAuth discovery and tokens</h3>
-        <p className="text-sm text-muted-foreground">
+      <section aria-labelledby="auth-discovery-title" className={sectionClass}>
+        <h3 id="auth-discovery-title" className="text-sm font-medium">OAuth discovery and tokens</h3>
+        <p className="text-xs text-muted-foreground">
           Discover authorization metadata before revoking tokens. Token values remain masked; decoded claims are displayed without exposing the bearer token.
         </p>
         <OAuthDetails

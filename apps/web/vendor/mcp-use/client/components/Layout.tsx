@@ -1,4 +1,4 @@
-// Modified for the combined Inspector: keep legacy Inspector links on Protocol.
+// Modified for the combined Inspector: keep legacy Inspector links on Protocol, put the RPC Panel switch and Command Palette search in the header, list menus and their features in the Command Palette, and make the RPC Panel resizable.
 import { Spinner } from "@/client/components/ui/spinner";
 import { TooltipProvider } from "@/client/components/ui/tooltip";
 import {
@@ -51,6 +51,8 @@ import { SidebarRpcPanel } from "./layout/sidebar/SidebarRpcPanel";
 import { MobileInspectorToolbar } from "./layout/mobile/MobileInspectorToolbar";
 import { getInspectorBodyClassName } from "./layout/inspectorLayoutClasses";
 import { useTunnelConnectionSync } from "./layout/useTunnelConnectionSync";
+import { RpcPanelResizeHandle, useRpcPanelWidth } from "../../../../src/features/RpcPanelResize.js";
+import { revealSection } from "../../../../src/features/revealSection.js";
 
 interface LayoutProps {
   children: ReactNode;
@@ -135,6 +137,7 @@ export function Layout({ children }: LayoutProps) {
       return false;
     }
   });
+  const rpcPanel = useRpcPanelWidth();
 
   useEffect(() => {
     try {
@@ -565,6 +568,12 @@ export function Layout({ children }: LayoutProps) {
     }
   };
 
+  const handleCommandPaletteTabNavigate = (tab: TabType, sectionId?: string) => {
+    if (!selectedServerId) return;
+    handleTabChange(tab);
+    if (sectionId) revealSection(sectionId);
+  };
+
   const selectedServer = connections.find((c) => c.id === selectedServerId);
   const displayServerRef = useRef<McpServer | undefined>(undefined);
 
@@ -924,7 +933,9 @@ export function Layout({ children }: LayoutProps) {
     : cn(
         "flex-1 min-h-0 min-w-0 max-w-full w-full bg-white dark:bg-black rounded-2xl border border-zinc-200 dark:border-zinc-700 overflow-x-hidden overflow-y-auto",
         !displayServerWithStableMetadata && "lg:mx-4",
-        displayServerWithStableMetadata && "lg:mr-4"
+        displayServerWithStableMetadata &&
+          !(rpcLoggerOpen && !isSingleTab) &&
+          "lg:mr-4"
       );
 
   const bodyClassName = getInspectorBodyClassName(isSingleTab);
@@ -937,6 +948,9 @@ export function Layout({ children }: LayoutProps) {
     onTabChange: handleTabChange,
     embedded: isEmbedded,
     sidebarCollapsed,
+    rpcLoggerOpen,
+    onRpcLoggerOpenChange: setRpcLoggerOpen,
+    onCommandPaletteOpen: () => handleCommandPaletteOpen("button"),
   };
 
   return (
@@ -965,12 +979,7 @@ export function Layout({ children }: LayoutProps) {
                   visibleTabs={embeddedConfig.visibleTabs}
                   collapsed={sidebarCollapsed}
                   onCollapsedChange={setSidebarCollapsed}
-                  rpcLoggerOpen={rpcLoggerOpen}
-                  onRpcLoggerOpenChange={setRpcLoggerOpen}
                   embedded={isEmbedded}
-                  onCommandPaletteOpen={() =>
-                    handleCommandPaletteOpen("button")
-                  }
                 />
               )}
               <main className={mainClassName}>
@@ -986,10 +995,22 @@ export function Layout({ children }: LayoutProps) {
                 </LayoutContent>
               </main>
               {displayServerWithStableMetadata && !isSingleTab && (
-                <SidebarRpcPanel
-                  serverId={displayServerWithStableMetadata.id}
-                  open={rpcLoggerOpen}
-                />
+                <>
+                  {rpcLoggerOpen && (
+                    <RpcPanelResizeHandle
+                      width={rpcPanel.width}
+                      resizing={rpcPanel.resizing}
+                      onResizingChange={rpcPanel.setResizing}
+                      onResize={rpcPanel.resizeTo}
+                    />
+                  )}
+                  <SidebarRpcPanel
+                    serverId={displayServerWithStableMetadata.id}
+                    open={rpcLoggerOpen}
+                    width={rpcPanel.width}
+                    resizing={rpcPanel.resizing}
+                  />
+                </>
               )}
             </div>
           </div>
@@ -1016,6 +1037,10 @@ export function Layout({ children }: LayoutProps) {
         selectedServer={selectedServer}
         tunnelUrl={tunnelUrl}
         onNavigate={handleCommandPaletteNavigate}
+        onTabNavigate={handleCommandPaletteTabNavigate}
+        visibleTabs={embeddedConfig.visibleTabs}
+        rpcPanelOpen={rpcLoggerOpen}
+        onRpcPanelOpenChange={setRpcLoggerOpen}
         onServerSelect={handleServerSelect}
       />
     </TooltipProvider>

@@ -1,16 +1,20 @@
 import type { McpServer } from "@mcp-use/client/react";
+import { Network } from "lucide-react";
 import { useInspector } from "@/client/context/InspectorContext";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { rpcTrafficStore } from "../../vendor/mcp-use/client/rpc-traffic-store.js";
-import { filterProtocol } from "./analysis.js";
 import { downloadJson, parseParameters, redact } from "./model.js";
-import { networkStore } from "./network.js";
+import { networkEntriesFor, networkStore } from "./network.js";
+import { StyledSelect } from "./StyledSelect.js";
+import { buildProtocolExchanges, filterExchanges } from "./traffic.js";
+import { NetworkLogList, ProtocolLogList } from "./TrafficLogs.js";
 import { useInspectorAction } from "./useInspectorAction.js";
 import {
   InspectorPage,
   buttonClass,
   getSelectedConnector,
   inputClass,
+  sectionClass,
   stringify,
 } from "./OfficialPanels.js";
 
@@ -45,16 +49,17 @@ export function ProtocolTab({ connection }: { connection: McpServer }) {
   const connector = () => getSelectedConnector(connection);
   const request = (method: string, params: Record<string, unknown>, signal: AbortSignal) =>
     connector().request(method, params, { signal, timeout: 30_000 });
-  const serverTraffic = rpc.filter((entry) => entry.serverId === connection.id);
-  const rpcEntries = filterProtocol(
-    serverTraffic as (typeof serverTraffic[number] & { message: Record<string, unknown> })[],
-    { method: methodFilter, direction, search, order },
+  const serverTraffic = useMemo(() => rpc.filter((entry) => entry.serverId === connection.id), [rpc, connection.id]);
+  const exchanges = useMemo(
+    () => filterExchanges(buildProtocolExchanges(serverTraffic), { method: methodFilter, direction, search, order }),
+    [serverTraffic, methodFilter, direction, search, order],
   );
-  const networkEntries = network.filter((entry) =>
-    connection.url &&
-    entry.url.includes(connection.url) &&
-    stringify(entry).toLowerCase().includes(search.toLowerCase()),
-  );
+  const networkEntries = useMemo(() => {
+    const query = search.toLowerCase();
+    const scoped = connection.url ? networkEntriesFor(network, [connection.url]) : [];
+    const matching = scoped.filter((entry) => !query || stringify(entry).toLowerCase().includes(query));
+    return order === "newest" ? matching.reverse() : matching;
+  }, [network, connection.url, search, order]);
   const consoleEntries = connection.log.filter((entry) =>
     stringify(entry).toLowerCase().includes(search.toLowerCase()),
   );
@@ -124,6 +129,7 @@ export function ProtocolTab({ connection }: { connection: McpServer }) {
   return (
     <InspectorPage
       title="Protocol"
+      icon={Network}
       testId="inspector-features"
       connection={connection}
       result={result}
@@ -132,8 +138,8 @@ export function ProtocolTab({ connection }: { connection: McpServer }) {
       cancel={cancel}
       resultFormat="raw"
     >
-      <section aria-labelledby="protocol-request-title" className="space-y-3">
-        <h3 id="protocol-request-title" className="text-lg font-semibold">Request console</h3>
+      <section aria-labelledby="protocol-request-title" className={sectionClass}>
+        <h3 id="protocol-request-title" className="text-sm font-medium">Request console</h3>
         <label className="block space-y-2">
           Request parameters
           <textarea
@@ -143,7 +149,7 @@ export function ProtocolTab({ connection }: { connection: McpServer }) {
             onChange={(event) => setText(event.target.value)}
           />
         </label>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Send one request object, or an array of up to 20 for a batch. Include <code>_meta</code> in params for request metadata such as a progress token.
         </p>
         <div className="flex flex-wrap gap-2">
@@ -159,8 +165,8 @@ export function ProtocolTab({ connection }: { connection: McpServer }) {
           })}
           {action("Clear protocol", () => rpcTrafficStore.clear({ serverIds: [connection.id] }))}
           {action("Export protocol", () => {
-            downloadJson("protocol.json", rpcEntries);
-            return { exported: rpcEntries.length };
+            downloadJson("protocol.json", exchanges);
+            return { exported: exchanges.length };
           })}
         </div>
         {saved.map((item, index) => (
@@ -208,29 +214,42 @@ export function ProtocolTab({ connection }: { connection: McpServer }) {
             Method filter
             <input className={inputClass} value={methodFilter} onChange={(event) => setMethodFilter(event.target.value)} />
           </label>
-          <label className="block">
-            Direction
-            <select className={inputClass} value={direction} onChange={(event) => setDirection(event.target.value)}>
-              <option value="all">All</option>
-              <option value="send">Sent</option>
-              <option value="receive">Received</option>
-            </select>
-          </label>
-          <label className="block">
-            Order
-            <select className={inputClass} value={order} onChange={(event) => setOrder(event.target.value as "newest" | "oldest")}>
-              <option value="oldest">Oldest first</option>
-              <option value="newest">Newest first</option>
-            </select>
-          </label>
+          <div className="block space-y-1">
+            <span>Direction</span>
+            <StyledSelect
+              label="Direction"
+              value={direction}
+              onValueChange={setDirection}
+              options={[
+                { value: "all", label: "All" },
+                { value: "send", label: "Sent" },
+                { value: "receive", label: "Received" },
+              ]}
+            />
+          </div>
+          <div className="block space-y-1">
+            <span>Order</span>
+            <StyledSelect
+              label="Order"
+              value={order}
+              onValueChange={(value) => setOrder(value === "newest" ? "newest" : "oldest")}
+              options={[
+                { value: "oldest", label: "Oldest first" },
+                { value: "newest", label: "Newest first" },
+              ]}
+            />
+          </div>
         </div>
-        <pre data-testid="protocol-traffic" className="overflow-auto text-xs">{stringify(redact(rpcEntries))}</pre>
+        <p className="text-xs text-muted-foreground">
+          Protocol view: each JSON-RPC request paired with its response, with status and round-trip time. Expand a row for parameters and the result.
+        </p>
+        <ProtocolLogList exchanges={exchanges} testId="protocol-traffic" />
       </section>
 
-      <section aria-labelledby="protocol-network-title" className="space-y-3">
-        <h3 id="protocol-network-title" className="text-lg font-semibold">Network</h3>
-        <p className="text-sm text-muted-foreground">
-          Transport headers, status, errors and timing for requests made by this client. The log keeps the latest {networkStore.limit(connection.url)} requests; change the limit in Connection Settings.
+      <section aria-labelledby="protocol-network-title" className={sectionClass}>
+        <h3 id="protocol-network-title" className="text-sm font-medium">Network</h3>
+        <p className="text-xs text-muted-foreground">
+          Every HTTP request this client made: URL, status, timing, request and response headers, and bodies (secrets redacted, bodies capped at 64 KB). The log keeps the latest {networkStore.limit(connection.url)} requests; change the limit in Connection Settings.
         </p>
         <div className="flex flex-wrap gap-2">
           {action("Clear network", () => networkStore.clear(connection.url))}
@@ -239,11 +258,11 @@ export function ProtocolTab({ connection }: { connection: McpServer }) {
             return { exported: networkEntries.length };
           })}
         </div>
-        <pre data-testid="network-traffic" className="overflow-auto text-xs">{stringify(redact(networkEntries))}</pre>
+        <NetworkLogList entries={networkEntries} testId="network-traffic" />
       </section>
 
-      <section aria-labelledby="protocol-console-title" className="space-y-3">
-        <h3 id="protocol-console-title" className="text-lg font-semibold">Console</h3>
+      <section aria-labelledby="protocol-console-title" className={sectionClass}>
+        <h3 id="protocol-console-title" className="text-sm font-medium">Console</h3>
         <label className="block">
           Filter console
           <input

@@ -4,6 +4,218 @@ import { createServer, request as httpRequest } from "node:http";
 import type { AddressInfo } from "node:net";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
+
+async function chooseOption(page: Page, scope: Page | Locator, label: string, option: string) {
+  const combobox = scope.getByRole("combobox", { name: label, exact: true });
+  // Base UI select popups animate out and stay mounted while hidden; settle before and after choosing.
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await combobox.click();
+  await expect(combobox).toHaveAttribute("aria-expanded", "true");
+  await page.getByRole("option", { name: option, exact: true }).filter({ visible: true }).click();
+  await expect(combobox).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`additional panels and RPC states follow native styling in ${theme} mode`, async ({ page }) => {
+    test.setTimeout(120_000);
+    const server = createServer(async (request, response) => {
+      if (request.method !== "POST") {
+        response.writeHead(405).end();
+        return;
+      }
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      const message = JSON.parse(Buffer.concat(chunks).toString()) as { id?: number; method: string };
+      if (message.id === undefined) {
+        response.writeHead(202).end();
+        return;
+      }
+      const results: Record<string, unknown> = {
+        initialize: {
+          protocolVersion: "2025-03-26",
+          capabilities: { tools: {}, prompts: {}, resources: {} },
+          serverInfo: { name: "ui-fixture", version: "1.0.0" },
+        },
+        "tools/list": { tools: [] },
+        "prompts/list": { prompts: [] },
+        "resources/list": { resources: [] },
+        "resources/templates/list": { resourceTemplates: [] },
+        ping: {},
+      };
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify(message.method in results
+        ? { jsonrpc: "2.0", id: message.id, result: results[message.method] }
+        : { jsonrpc: "2.0", id: message.id, error: { code: -32601, message: "Method not found" } }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address() as AddressInfo;
+    const background = (locator: Locator) => locator.evaluate((element) => getComputedStyle(element).backgroundColor);
+    // Largest RGB channel difference between the element's background and the surface behind it.
+    const contrastWithSurface = (locator: Locator) => locator.evaluate((element) => {
+      let parent = element.parentElement;
+      let surface = "rgb(255, 255, 255)";
+      while (parent) {
+        const color = getComputedStyle(parent).backgroundColor;
+        if (color !== "transparent" && !/rgba\(0, 0, 0, 0\)|\/ 0\)$/.test(color)) { surface = color; break; }
+        parent = parent.parentElement;
+      }
+      const context = document.createElement("canvas").getContext("2d", { willReadFrequently: true })!;
+      const pixel = (fills: string[]) => {
+        context.clearRect(0, 0, 1, 1);
+        for (const fill of fills) { context.fillStyle = fill; context.fillRect(0, 0, 1, 1); }
+        return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+      };
+      const base = pixel([surface]);
+      const over = pixel([surface, getComputedStyle(element).backgroundColor]);
+      return Math.max(...base.map((value, index) => Math.abs(value - over[index])));
+    });
+    try {
+      await page.route("https://**", (route) => route.abort());
+      await page.setViewportSize({ width: 1280, height: 520 });
+      await page.goto(`/?theme=${theme}&server=${encodeURIComponent(`http://127.0.0.1:${port}/mcp`)}&tab=protocol`);
+      const tabs = page.getByRole("list", { name: "Inspector tabs" });
+      await expect(tabs.getByRole("button", { name: "Protocol", exact: true })).toBeVisible({ timeout: 20_000 });
+      await tabs.getByRole("button", { name: "Server Metadata", exact: true }).click();
+      const metadataTitle = page.getByTestId("server-info-modal-title");
+      await expect(metadataTitle).toBeVisible();
+      const metadataHeader = metadataTitle.locator("xpath=../..");
+      const nativeHeader = await metadataHeader.evaluate((element) => ({
+        height: element.getBoundingClientRect().height,
+        gap: getComputedStyle(element).columnGap,
+        titleGap: getComputedStyle(element.querySelector("h2")!).columnGap,
+      }));
+      for (const [name, id] of [
+        ["Protocol", "inspector-features"], ["Auth", "inspector-auth"],
+        ["Client", "inspector-client"], ["Diagnostics", "inspector-diagnostics"],
+      ]) {
+        const menu = tabs.getByRole("button", { name, exact: true });
+        await menu.click();
+        const panel = page.getByTestId(id);
+        const header = panel.locator("header");
+        const heading = header.getByRole("heading", { name, exact: true });
+        await expect(heading).toBeVisible();
+        expect.soft(await heading.evaluate((element) => getComputedStyle(element).fontSize)).toBe("15px");
+        expect.soft(await heading.locator("svg").count()).toBe(1);
+        if (await heading.locator("svg").count()) {
+          expect.soft(await heading.locator("svg").evaluate((element) => element.innerHTML))
+            .toBe(await menu.locator("svg").evaluate((element) => element.innerHTML));
+        }
+        const headerStyle = await header.evaluate((element) => ({
+          height: element.getBoundingClientRect().height,
+          gap: getComputedStyle(element).columnGap,
+          titleGap: getComputedStyle(element.querySelector("h2")!).columnGap,
+        }));
+        expect.soft(headerStyle.gap).toBe(nativeHeader.gap);
+        expect.soft(headerStyle.titleGap).toBe(nativeHeader.titleGap);
+        expect.soft(Math.abs(headerStyle.height - nativeHeader.height)).toBeLessThanOrEqual(1);
+        const borderAtTop = await header.evaluate((element) => getComputedStyle(element).borderBottomColor);
+        expect.soft(borderAtTop).toBe("rgba(0, 0, 0, 0)");
+        const headerTop = (await header.boundingBox())!.y;
+        await panel.evaluate((element) => { element.scrollTop = 100; });
+        await page.waitForTimeout(250);
+        expect.soft(await panel.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+        expect.soft(await header.evaluate((element) => getComputedStyle(element).borderBottomColor)).not.toBe(borderAtTop);
+        expect.soft((await header.boundingBox())!.y).toBeCloseTo(headerTop, 0);
+        const cards = panel.locator("section[aria-labelledby]");
+        expect.soft(await cards.count()).toBeGreaterThanOrEqual(2);
+        for (const card of await cards.all()) {
+          const style = await card.evaluate((element) => {
+            const css = getComputedStyle(element);
+            return { border: css.borderTopWidth, radius: css.borderRadius, padding: css.paddingTop };
+          });
+          expect.soft(style).toEqual({ border: "1px", radius: "14px", padding: "16px" });
+        }
+      }
+      await tabs.getByRole("button", { name: "Protocol", exact: true }).click();
+      const protocol = page.getByTestId("inspector-features");
+      await protocol.getByRole("button", { name: "Send request", exact: true }).click();
+      await expect(protocol.getByTestId("inspector-result")).toHaveText("{}");
+      await page.getByRole("banner").getByRole("switch", { name: "RPC Panel" }).click();
+      const rpc = page.getByRole("complementary", { name: "RPC Panel" });
+      const protocolTab = rpc.getByRole("tab", { name: "Protocol", exact: true });
+      const networkTab = rpc.getByRole("tab", { name: "Network", exact: true });
+      expect.soft(await background(protocolTab)).not.toBe(await background(networkTab));
+      const sidebarAccent = await page.evaluate(() => {
+        const probe = document.createElement("div");
+        probe.style.backgroundColor = "var(--sidebar-accent)";
+        document.body.append(probe);
+        const color = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return color;
+      });
+      await expect.poll(() => background(protocolTab)).toBe(sidebarAccent);
+      expect.soft(await protocolTab.evaluate((element) => getComputedStyle(element).boxShadow)).toBe("none");
+      await expect.poll(() => contrastWithSurface(protocolTab)).toBeGreaterThanOrEqual(8);
+      const mcpFilter = rpc.getByRole("checkbox", { name: "MCP", exact: true });
+      await expect.poll(() => contrastWithSurface(mcpFilter)).toBeGreaterThanOrEqual(8);
+      const checkedBackground = await background(mcpFilter);
+      await mcpFilter.click();
+      await expect(mcpFilter).toHaveAttribute("aria-checked", "false");
+      expect.soft(await background(mcpFilter)).not.toBe(checkedBackground);
+      await mcpFilter.click();
+      const row = rpc.getByTestId("rpc-message-ping").first().getByRole("button").first();
+      const collapsed = await background(row);
+      await row.click();
+      await expect(row).toHaveAttribute("aria-expanded", "true");
+      await page.mouse.move(0, 0);
+      expect.soft(await background(row)).not.toBe(collapsed);
+      await expect.poll(() => contrastWithSurface(row)).toBeGreaterThanOrEqual(8);
+      await row.click();
+      await expect(row).toHaveAttribute("aria-expanded", "false");
+      await networkTab.click();
+      expect.soft(await background(networkTab)).not.toBe(await background(protocolTab));
+      await expect.poll(() => background(networkTab)).toBe(sidebarAccent);
+      await expect.poll(() => contrastWithSurface(networkTab)).toBeGreaterThanOrEqual(8);
+      const networkRow = rpc.getByTestId("network-entry").first().getByRole("button").first();
+      const networkCollapsed = await background(networkRow);
+      await networkRow.click();
+      await page.mouse.move(0, 0);
+      expect.soft(await background(networkRow)).not.toBe(networkCollapsed);
+      await expect.poll(() => contrastWithSurface(networkRow)).toBeGreaterThanOrEqual(8);
+      await expect(rpc.getByTestId("network-entry-details").first()).toBeVisible();
+      await networkRow.click();
+      await page.keyboard.press("Tab");
+      await networkRow.focus();
+      expect(await networkRow.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe("none");
+      await page.getByRole("banner").getByRole("switch", { name: "RPC Panel" }).click();
+      await page.keyboard.press("Control+k");
+      const dialog = page.getByRole("dialog");
+      await expect(dialog).toBeVisible();
+      await expect.soft(dialog.getByText("MCP Use Website", { exact: true })).toHaveCount(0);
+      await expect.soft(dialog.getByText("Join Discord Community", { exact: true })).toHaveCount(0);
+      await expect(dialog.getByText("MCP Official Documentation", { exact: true })).toBeVisible();
+      await expect(dialog.getByText("How to Create an MCP Server", { exact: true })).toBeVisible();
+      await page.keyboard.press("ArrowDown");
+      await page.keyboard.press("Escape");
+      await expect(dialog).toBeHidden();
+      const forcedToggle = page.getByRole("banner").getByRole("button", { name: /Switch to (light|dark) theme/ });
+      await expect(forcedToggle).toBeDisabled();
+      await expect(forcedToggle).toHaveAttribute("title", "Theme set by URL");
+      await page.getByRole("banner").getByRole("button", { name: "Search commands" }).click();
+      await expect(page.getByTestId("command-palette-dialog")).toBeVisible();
+      await page.keyboard.press("Escape");
+      await page.setViewportSize({ width: 390, height: 844 });
+      expect(await page.getByRole("banner").evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+      await page.setViewportSize({ width: 1280, height: 520 });
+      for (const [name, id] of [
+        ["Protocol", "inspector-features"], ["Auth", "inspector-auth"],
+        ["Client", "inspector-client"], ["Diagnostics", "inspector-diagnostics"],
+      ]) {
+        await tabs.getByRole("button", { name, exact: true }).click();
+        await page.setViewportSize({ width: 390, height: 844 });
+        const panel = page.getByTestId(id);
+        expect(await panel.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+        await expect(panel.getByRole("heading", { name, exact: true })).toBeVisible();
+        await page.setViewportSize({ width: 1280, height: 520 });
+      }
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  });
+}
 
 test("the default entry opens the published mcp-use inspector in dark mode", async ({ page }) => {
   await page.route("https://**", (route) => route.abort());
@@ -281,6 +493,116 @@ test("the published interface connects to an MCP server and uses its tools, prom
     await page.getByTestId("tool-execution-execute-button").click();
     await expect(page.getByText("Hello, Ada!", { exact: true })).toBeVisible();
 
+    await expect(page.getByText(/manufact/i)).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Deploy", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: /discord|github/i })).toHaveCount(0);
+
+    const toolCallsBeforeLoad = methods.filter((method) => method === "tools/call").length;
+    await page.getByTestId("tool-execution-load-test-button").click();
+    const loadTest = page.getByTestId("load-test-panel");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(loadTest).toBeVisible();
+    await expect(loadTest.getByRole("tab", { name: "Tool: say-hello" })).toHaveAttribute("aria-selected", "true");
+    await loadTest.getByLabel(/^Requests/).fill("5");
+    await loadTest.getByLabel(/^Concurrency/).fill("2");
+    await loadTest.getByRole("button", { name: "Start", exact: true }).click();
+    const loadSummary = loadTest.getByTestId("load-test-summary");
+    await expect(loadSummary).toBeVisible({ timeout: 15_000 });
+    await expect(loadSummary.locator("dt", { hasText: /^Requests$/ }).locator("+ dd")).toHaveText("5");
+    await expect(loadSummary.locator("dt", { hasText: /^OK$/ }).locator("+ dd")).toHaveText("5");
+    expect(methods.filter((method) => method === "tools/call").length - toolCallsBeforeLoad).toBe(5);
+    const loadDownloadPromise = page.waitForEvent("download");
+    await loadTest.getByRole("button", { name: "Export JSON", exact: true }).click();
+    const loadExport = JSON.parse(await readFile(await (await loadDownloadPromise).path(), "utf8"));
+    expect(loadExport.target).toEqual({ tool: "say-hello", arguments: { name: "Ada" } });
+    expect(loadExport.summary).toEqual(expect.objectContaining({ requests: 5, ok: 5 }));
+    await page.getByTestId("tool-execution-execute-button").click();
+    await expect(loadTest).toBeHidden();
+    await expect(page.getByText("Hello, Ada!", { exact: true })).toBeVisible();
+    await page.getByTestId("tool-execution-load-test-button").click();
+    await expect(loadSummary).toBeVisible();
+    await loadTest.getByRole("button", { name: "Close load test", exact: true }).click();
+    await expect(loadTest).toHaveCount(0);
+    await expect(page.getByText("Hello, Ada!", { exact: true })).toBeVisible();
+
+    await expect(page.getByTestId("inspector-sidebar-footer")).toHaveCount(0);
+    const banner = page.getByRole("banner");
+    const headerActions = await banner.evaluate((element) => [...element.querySelectorAll("button, [role=switch]")]
+      .filter((node) => (node as HTMLElement).offsetParent)
+      .map((node) => node.getAttribute("aria-label") ?? node.textContent?.trim() ?? ""));
+    expect(headerActions.indexOf("Switch to light theme")).toBeGreaterThan(headerActions.indexOf("RPC Panel"));
+    const searchCommands = banner.getByRole("button", { name: "Search commands" });
+    await searchCommands.click();
+    await expect(page.getByTestId("command-palette-dialog")).toBeVisible();
+    await page.getByTestId("command-palette-input").fill("OpenCode");
+    await expect(page.getByTestId("command-palette-item-open-in-opencode")).toBeVisible();
+    await expect(page.getByTestId("command-palette-item-open-in-opencode").getByRole("img", { name: "OpenCode" }))
+      .toHaveAttribute("src", "https://cdn.simpleicons.org/opencode");
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.getByTestId("command-palette-item-open-in-opencode").click();
+    await expect(page.getByTestId("command-palette-dialog")).toBeHidden();
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toMatch(/^opencode mcp add "[^"]+" --url '/);
+    await searchCommands.click();
+    await expect(page.getByTestId("command-palette-dialog")).toBeVisible();
+    await page.getByTestId("command-palette-input").fill("load testing");
+    await page.getByTestId("command-palette-item-feature-diagnostics-load-title").click();
+    await expect(page).toHaveURL(/tab=diagnostics/);
+    await expect(page.getByRole("region", { name: "Load testing" })).toBeInViewport();
+    await searchCommands.click();
+    await page.getByTestId("command-palette-input").fill("Auth");
+    await page.getByTestId("command-palette-item-menu-auth").click();
+    await expect(page).toHaveURL(/tab=auth/);
+    await expect(page.getByRole("heading", { level: 2, name: "Auth" })).toBeVisible();
+    await searchCommands.click();
+    await expect(page.getByTestId("command-palette-dialog")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("command-palette-dialog")).toBeHidden();
+    await searchCommands.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("command-palette-dialog")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await banner.getByRole("button", { name: "Add to Client" }).click();
+    await page.getByRole("menuitem", { name: "OpenCode" }).click();
+    const openCodeDialog = page.getByRole("dialog", { name: "Add to OpenCode" });
+    await expect(openCodeDialog).toContainText("opencode mcp add");
+    await expect(openCodeDialog).toContainText('"type": "remote"');
+    await expect(openCodeDialog).toContainText("opencode.json");
+    await page.keyboard.press("Escape");
+    const rpcSwitch = page.getByRole("banner").getByRole("switch", { name: "RPC Panel" });
+    await rpcSwitch.click();
+    const rpcPanel = page.getByRole("complementary", { name: "RPC Panel" });
+    const rpcResize = page.getByRole("separator", { name: "Resize RPC Panel" });
+    await expect(rpcResize).toBeVisible();
+    const rpcWidthBefore = Number(await rpcResize.getAttribute("aria-valuenow"));
+    await expect.poll(async () => Math.round((await rpcPanel.boundingBox())?.width ?? 0)).toBe(rpcWidthBefore);
+    await expect
+      .poll(async () => {
+        const first = (await rpcResize.boundingBox())?.x;
+        await page.waitForTimeout(100);
+        return first === (await rpcResize.boundingBox())?.x;
+      })
+      .toBe(true);
+    const grip = await rpcResize.boundingBox();
+    if (!grip) throw new Error("RPC Panel resize handle has no box");
+    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(grip.x + grip.width / 2 - 120, grip.y + grip.height / 2, { steps: 5 });
+    await page.mouse.up();
+    await expect(rpcResize).toHaveAttribute("aria-valuenow", String(rpcWidthBefore + 120));
+    await expect.poll(async () => Math.round((await rpcPanel.boundingBox())?.width ?? 0)).toBe(rpcWidthBefore + 120);
+    await rpcResize.focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(rpcResize).toHaveAttribute("aria-valuenow", String(rpcWidthBefore + 104));
+    await rpcPanel.getByRole("tab", { name: "Network", exact: true }).click();
+    const toolRequest = rpcPanel.getByTestId("network-entry").filter({ hasText: "tools/call" }).last();
+    await expect(toolRequest).toContainText("200");
+    await toolRequest.getByRole("button").first().click();
+    await expect(toolRequest.getByTestId("network-entry-details")).toContainText("Hello, Ada!");
+    await rpcPanel.getByRole("tab", { name: "Protocol", exact: true }).click();
+    await rpcSwitch.click();
+    await expect(rpcResize).toHaveCount(0);
+
     await tabs.getByRole("button", { name: "Prompts", exact: true }).click();
     await page.getByTestId("prompt-item-greet").click();
     await expect(page.getByText("No arguments required", { exact: true })).toBeVisible();
@@ -318,9 +640,22 @@ test("the published interface connects to an MCP server and uses its tools, prom
         .getByText("Sandboxed UI works"),
     ).toBeVisible();
 
-    await page.getByRole("button", { name: "Theme", exact: true }).click();
-    await page.getByRole("menuitemradio", { name: "Dark" }).click();
+    expect(await page.evaluate(() => localStorage.getItem("theme"))).toBe("dark");
     await expect(page.locator("html")).toHaveClass(/dark/);
+    await page.getByRole("banner").getByRole("button", { name: "Switch to light theme" }).click();
+    await expect(page.locator("html")).toHaveClass(/light/);
+    await page.reload();
+    await expect(page.locator("html")).toHaveClass(/light/);
+    await page.getByRole("banner").getByRole("button", { name: "Switch to dark theme" }).click();
+    await expect(page.locator("html")).toHaveClass(/dark/);
+    await page.evaluate(() => localStorage.setItem("theme", "system"));
+    await page.reload();
+    await expect(page.locator("html")).toHaveClass(/dark/);
+    await expect(page.getByRole("banner").getByRole("button", { name: "Switch to light theme" })).toBeEnabled();
+    await page.evaluate(() => localStorage.setItem("theme", "sepia"));
+    await page.reload();
+    await expect(page.locator("html")).toHaveClass(/dark/);
+    await expect.poll(() => page.evaluate(() => localStorage.getItem("theme"))).toBe("dark");
 
     await page.reload();
     await expect(page.locator("html")).toHaveClass(/dark/);
@@ -437,9 +772,22 @@ test("Official Inspector workflows run against the selected mcp-use connection",
     expect(methods.filter((method) => method === "ping").length - pingsBefore).toBe(6);
 
     await tabs.getByRole("button", { name: "Protocol", exact: true }).click();
-    await expect(inspector.getByTestId("network-traffic")).toContainText(`127.0.0.1:${port}/mcp`);
-    await expect(inspector.getByTestId("network-traffic")).toContainText('"status": 200');
-    await expect(inspector.getByTestId("network-traffic")).not.toContainText("fixture-secret");
+    const network = inspector.getByTestId("network-traffic");
+    const pingRequest = network.getByTestId("network-entry").filter({ hasText: "ping" }).first();
+    await expect(pingRequest).toContainText("200");
+    await expect(pingRequest).toContainText(`127.0.0.1:${port}/mcp`);
+    await pingRequest.getByRole("button").first().click();
+    const pingDetails = pingRequest.getByTestId("network-entry-details");
+    await expect(pingDetails).toContainText("Request headers");
+    await expect(pingDetails).toContainText("mcp-protocol-version");
+    await expect(pingDetails).toContainText("Response body");
+    await expect(pingDetails).toContainText('"method": "ping"');
+    await expect(network).not.toContainText("fixture-secret");
+    const networkDownloadPromise = page.waitForEvent("download");
+    await inspector.getByRole("button", { name: "Export network", exact: true }).click();
+    const networkExport = await readFile(await (await networkDownloadPromise).path(), "utf8");
+    expect(networkExport).toContain("requestHeaders");
+    expect(networkExport).not.toContain("fixture-secret");
 
     await tabs.getByRole("button", { name: "Auth", exact: true }).click();
     const auth = page.getByTestId("inspector-auth");
@@ -605,7 +953,7 @@ test("Official Inspector analysis, history and connection workflows use the sele
     await tabs.getByRole("button", { name: "Protocol", exact: true }).click();
 
     await tabs.getByRole("button", { name: "Notifications", exact: true }).click();
-    await page.getByLabel("Active log level").selectOption("debug");
+    await chooseOption(page, page, "Active log level", "debug");
     await page.getByRole("button", { name: "Set log level", exact: true }).click();
     await expect.poll(() => methods).toContain("logging/setLevel");
 
@@ -621,11 +969,15 @@ test("Official Inspector analysis, history and connection workflows use the sele
     await inspector.getByLabel("Request parameters").fill('{"method":"resources/list","params":{}}');
     await inspector.getByRole("button", { name: "Send request", exact: true }).click();
     await inspector.getByRole("button", { name: "Fetch next page", exact: true }).click();
-    await expect(inspector.getByTestId("protocol-traffic")).toContainText("resource://page-2");
+    const protocolTraffic = inspector.getByTestId("protocol-traffic");
+    const resourcesLists = protocolTraffic.getByRole("listitem").filter({ hasText: /resources\/list\s*ok/ });
+    await expect(resourcesLists).toHaveCount(2);
+    await resourcesLists.last().getByRole("button").first().click();
+    await expect(protocolTraffic).toContainText("resource://page-2");
     await inspector.getByLabel("Method filter").fill("resources/list");
-    await inspector.getByLabel("Direction").selectOption("receive");
-    await expect(inspector.getByTestId("protocol-traffic")).toContainText("resource://page-2");
-    await expect(inspector.getByTestId("protocol-traffic")).not.toContainText('"method": "ping"');
+    await chooseOption(page, inspector, "Direction", "Received");
+    await expect(protocolTraffic).toContainText("resource://page-2");
+    await expect(protocolTraffic.getByRole("listitem").filter({ hasText: "ping" })).toHaveCount(0);
     const protocolDownloadPromise = page.waitForEvent("download");
     await inspector.getByRole("button", { name: "Export protocol", exact: true }).click();
     expect((await protocolDownloadPromise).suggestedFilename()).toBe("protocol.json");
@@ -649,7 +1001,7 @@ test("Official Inspector analysis, history and connection workflows use the sele
 
     await tabs.getByRole("button", { name: "Diagnostics", exact: true }).click();
     const diagnostics = page.getByTestId("inspector-diagnostics");
-    await diagnostics.getByLabel("Export format").selectOption("vscode");
+    await chooseOption(page, diagnostics, "Export format", "VS Code (servers)");
     const downloadPromise = page.waitForEvent("download");
     await diagnostics.getByRole("button", { name: "Export connected servers", exact: true }).click();
     const download = await downloadPromise;
@@ -1022,7 +1374,7 @@ test("native Skills verifies resources and Notifications filters logs without hi
     const progressNotification = notificationItems.filter({ hasText: "notifications/progress" });
     await expect(logNotification).toBeVisible();
     await expect(progressNotification).toBeVisible();
-    await page.getByLabel("Minimum log level").selectOption("error");
+    await chooseOption(page, page, "Minimum log level", "error");
     await expect(logNotification).toHaveCount(0);
     await expect(progressNotification).toBeVisible();
     await page.getByLabel("Search logs").fill("no matching log");
@@ -1030,8 +1382,8 @@ test("native Skills verifies resources and Notifications filters logs without hi
     await expect(progressNotification).toBeVisible();
 
     await page.getByLabel("Search logs").fill("");
-    await page.getByLabel("Minimum log level").selectOption("debug");
-    await page.getByLabel("Active log level").selectOption("warning");
+    await chooseOption(page, page, "Minimum log level", "debug");
+    await chooseOption(page, page, "Active log level", "warning");
     await page.getByRole("button", { name: "Set log level", exact: true }).click();
     await expect.poll(() => requests.filter(({ method }) => method === "logging/setLevel"))
       .toEqual([{ method: "logging/setLevel", params: { level: "warning" } }]);

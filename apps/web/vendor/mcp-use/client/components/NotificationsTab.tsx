@@ -1,5 +1,7 @@
-// Modified for the combined Inspector: add native log filtering and logging controls.
+// Modified for the combined Inspector: add native log filtering, logging controls, styled dropdowns, and JSON exports.
 import type { McpNotification, McpServer } from "@mcp-use/client/react";
+import { downloadJson } from "../../../../src/features/model.js";
+import { StyledSelect } from "../../../../src/features/StyledSelect.js";
 
 // Type alias for backward compatibility
 type MCPNotification = McpNotification;
@@ -14,6 +16,7 @@ const LOG_LEVELS = [
   "emergency",
 ] as const;
 type LogLevel = (typeof LOG_LEVELS)[number];
+const LOG_LEVEL_OPTIONS = LOG_LEVELS.map((level) => ({ value: level, label: level }));
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bell, Trash2 } from "lucide-react";
 import { Button } from "@/client/components/ui/button";
@@ -420,14 +423,12 @@ export function NotificationsTab({
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="block space-y-1 text-xs text-muted-foreground">
                         Minimum log level
-                        <select
-                          aria-label="Minimum log level"
-                          className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                        <StyledSelect
+                          label="Minimum log level"
                           value={minimumLogLevel}
-                          onChange={(event) => setMinimumLogLevel(event.target.value as LogLevel)}
-                        >
-                          {LOG_LEVELS.map((level) => <option key={level}>{level}</option>)}
-                        </select>
+                          onValueChange={(value) => setMinimumLogLevel(value as LogLevel)}
+                          options={LOG_LEVEL_OPTIONS}
+                        />
                       </label>
                       <label className="block space-y-1 text-xs text-muted-foreground">
                         Search logs
@@ -442,14 +443,12 @@ export function NotificationsTab({
                     <div className="flex flex-wrap items-end gap-2">
                       <label className="block min-w-40 space-y-1 text-xs text-muted-foreground">
                         Active log level
-                        <select
-                          aria-label="Active log level"
-                          className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                        <StyledSelect
+                          label="Active log level"
                           value={activeLogLevel}
-                          onChange={(event) => setActiveLogLevel(event.target.value as LogLevel)}
-                        >
-                          {LOG_LEVELS.map((level) => <option key={level}>{level}</option>)}
-                        </select>
+                          onValueChange={(value) => setActiveLogLevel(value as LogLevel)}
+                          options={LOG_LEVEL_OPTIONS}
+                        />
                       </label>
                       <Button
                         type="button"
@@ -468,6 +467,18 @@ export function NotificationsTab({
                         onClick={handleExportLogs}
                       >
                         Export logs
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={filteredNotifications.length === 0}
+                        onClick={() => {
+                          downloadJson("notifications.json", filteredNotifications);
+                          setLoggingStatus(`Exported ${filteredNotifications.length} notification${filteredNotifications.length === 1 ? "" : "s"}`);
+                        }}
+                      >
+                        Export notifications
                       </Button>
                     </div>
                     {loggingError && <p role="alert" className="text-sm text-destructive">{loggingError}</p>}

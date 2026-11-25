@@ -1,3 +1,4 @@
+// Modified for the combined Inspector: omit website and community promotion commands, add Open in OpenCode, and list inspector menus, their features, and theme/RPC Panel toggles.
 import type { Prompt, Resource, Tool } from "@mcp-use/client/react";
 import {
   BrushCleaning,
@@ -5,10 +6,14 @@ import {
   FileText,
   History,
   MessageSquare,
+  Moon,
+  PanelRight,
   Plus,
   Search,
   Server,
+  SunDim,
   Wrench,
+  type LucideIcon,
 } from "lucide-react";
 import {
   useCallback,
@@ -25,6 +30,15 @@ import { shapeMap } from "@/client/lib/shape-context";
 import { cn } from "@/client/lib/utils";
 import { providerAssetUrl } from "@/client/utils/providerAssets";
 import type { SavedRequest } from "./tools/SavedRequestsList";
+import type { TabType } from "@/client/context/InspectorContext";
+import { useTheme } from "@/client/context/ThemeContext";
+import { isInspectorSamplingAvailable } from "@/client/utils/samplingProtocol";
+import { getSkillsState } from "./layout/layoutHeaderUtils";
+import {
+  LAYOUT_TAB_FEATURES,
+  LAYOUT_TABS,
+  type LayoutTabDef,
+} from "./layout/layoutTabs";
 
 import {
   downloadMcpbFile,
@@ -32,6 +46,7 @@ import {
   generateCodexConfig,
   generateCursorDeepLink,
   generateGeminiCLICommand,
+  generateOpenCodeCommand,
   generateVSCodeDeepLink,
   generateVSCodeInsidersDeepLink,
 } from "@/client/utils/mcpClientUtils";
@@ -39,31 +54,8 @@ import { copyToClipboard } from "@/client/utils/browser";
 import { toast } from "sonner";
 import { getServerDisplayName } from "@/client/utils/servers";
 import { getServerHeaders } from "@/client/utils/connectionUpdates";
-import { McpUseLogo } from "./McpUseLogo";
 import { ServerIcon } from "./ServerIcon";
 import { VSCodeIcon } from "./ui/client-icons";
-
-/**
- * Renders a Discord-style SVG icon.
- *
- * @param className - Optional CSS class applied to the root SVG element
- * @returns The SVG element for a Discord-like icon
- */
-function DiscordIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 -28.5 256 256"
-      className={className}
-      fill="currentColor"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M216.856339,16.5966031 C200.285002,8.84328665 182.566144,3.2084988 164.041564,0 C161.766523,4.11318106 159.108624,9.64549908 157.276099,14.0464379 C137.583995,11.0849896 118.072967,11.0849896 98.7430163,14.0464379 C96.9108417,9.64549908 94.1925838,4.11318106 91.8971895,0 C73.3526068,3.2084988 55.6133949,8.86399117 39.0420583,16.6376612 C5.61752293,67.146514 -3.4433191,116.400813 1.08711069,164.955721 C23.2560196,181.510915 44.7403634,191.567697 65.8621325,198.148576 C71.0772151,190.971126 75.7283628,183.341335 79.7352139,175.300261 C72.104019,172.400575 64.7949724,168.822202 57.8887866,164.667963 C59.7209612,163.310589 61.5131304,161.891452 63.2445898,160.431257 C105.36741,180.133187 151.134928,180.133187 192.754523,160.431257 C194.506336,161.891452 196.298154,163.310589 198.110326,164.667963 C191.183787,168.842556 183.854737,172.420929 176.223542,175.320965 C180.230393,183.341335 184.861538,190.991831 190.096624,198.16893 C211.238746,191.588051 232.743023,181.531619 254.911949,164.955721 C260.227747,108.668201 245.831087,59.8662432 216.856339,16.5966031 Z M85.4738752,135.09489 C72.8290281,135.09489 62.4592217,123.290155 62.4592217,108.914901 C62.4592217,94.5396472 72.607595,82.7145587 85.4738752,82.7145587 C98.3405064,82.7145587 108.709962,94.5189427 108.488529,108.914901 C108.508531,123.290155 98.3405064,135.09489 85.4738752,135.09489 Z M170.525237,135.09489 C157.88039,135.09489 147.510584,123.290155 147.510584,108.914901 C147.510584,94.5396472 157.658606,82.7145587 170.525237,82.7145587 C183.391518,82.7145587 193.761324,94.5189427 193.539891,108.914901 C193.539891,123.290155 183.391518,135.09489 170.525237,135.09489 Z"
-        fillRule="nonzero"
-      />
-    </svg>
-  );
-}
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -81,13 +73,17 @@ interface CommandPaletteProps {
     serverId?: string
   ) => void;
   onServerSelect: (serverId: string) => void;
+  onTabNavigate?: (tab: TabType, sectionId?: string) => void;
+  visibleTabs?: TabType[];
+  rpcPanelOpen?: boolean;
+  onRpcPanelOpenChange?: (open: boolean) => void;
 }
 
 interface CommandItem {
   id: string;
   name: string;
   description?: string;
-  type: "tool" | "prompt" | "resource" | "saved-request" | "global";
+  type: "tool" | "prompt" | "resource" | "saved-request" | "global" | "menu";
   category: string;
   metadata?: any;
   action?: () => void;
@@ -121,8 +117,13 @@ export function CommandPalette({
   tunnelUrl,
   onNavigate,
   onServerSelect,
+  onTabNavigate,
+  visibleTabs,
+  rpcPanelOpen,
+  onRpcPanelOpenChange,
 }: CommandPaletteProps) {
   const [search, setSearch] = useState("");
+  const { resolvedTheme, setTheme, forced: themeForced } = useTheme();
   const [activeIndex, setActiveIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -281,6 +282,23 @@ export function CommandPalette({
             onOpenChange(false);
           },
         },
+        {
+          id: "open-in-opencode",
+          name: "Open in OpenCode",
+          description: "Add this server to OpenCode",
+          type: "global",
+          category: "Open in Client",
+          action: () => {
+            const { command } = generateOpenCodeCommand(
+              serverUrl!,
+              serverName,
+              serverHeaders
+            );
+            copyToClipboard(command);
+            toast.success("Command copied to clipboard");
+            onOpenChange(false);
+          },
+        },
       ]
     : [];
 
@@ -293,14 +311,6 @@ export function CommandPalette({
       type: "global",
       category: "Navigation",
       action: () => navigate("/"),
-    },
-    {
-      id: "mcp-use-website",
-      name: "MCP Use Website",
-      description: "Visit mcp-use.com for tools and resources",
-      type: "global",
-      category: "Documentation",
-      action: () => window.open("https://mcp-use.com", "_blank"),
     },
     {
       id: "mcp-use-docs",
@@ -321,14 +331,6 @@ export function CommandPalette({
           "https://modelcontextprotocol.io/docs/getting-started/intro",
           "_blank"
         ),
-    },
-    {
-      id: "discord",
-      name: "Join Discord Community",
-      description: "Connect with the MCP community",
-      type: "global",
-      category: "Community",
-      action: () => window.open("https://discord.gg/XkNkSkMz3V", "_blank"),
     },
     {
       id: "clear-localstorage",
@@ -361,6 +363,70 @@ export function CommandPalette({
     },
   ];
 
+  // Create menu, menu feature, and preference items
+  const isMenuAvailable = (tabId: TabType) => {
+    if (visibleTabs && !visibleTabs.includes(tabId)) return false;
+    if (tabId === "sampling") return isInspectorSamplingAvailable(selectedServer);
+    if (tabId === "skills") return getSkillsState(selectedServer) === "available";
+    return true;
+  };
+  const menuTabs =
+    selectedServer && onTabNavigate
+      ? LAYOUT_TABS.filter(
+          (tab): tab is Extract<LayoutTabDef, { label: string }> =>
+            tab.id !== "separator" && isMenuAvailable(tab.id)
+        )
+      : [];
+  const menuItems: CommandItem[] = menuTabs.map((tab) => ({
+    id: `menu-${tab.id}`,
+    name: tab.label,
+    description: `Go to ${tab.label}`,
+    type: "menu",
+    category: "Menus",
+    metadata: { icon: tab.icon },
+    action: () => onTabNavigate?.(tab.id),
+  }));
+  const featureItems: CommandItem[] = menuTabs.flatMap((tab) =>
+    (LAYOUT_TAB_FEATURES[tab.id] ?? []).map((feature) => ({
+      id: `feature-${feature.sectionId}`,
+      name: `${tab.label} › ${feature.label}`,
+      description: feature.keywords,
+      type: "menu" as const,
+      category: `Features - ${tab.label}`,
+      metadata: { icon: tab.icon },
+      action: () => onTabNavigate?.(tab.id, feature.sectionId),
+    }))
+  );
+  const nextTheme = resolvedTheme === "dark" ? "light" : "dark";
+  const preferenceItems: CommandItem[] = [
+    ...(themeForced
+      ? []
+      : [
+          {
+            id: "toggle-theme",
+            name: `Switch to ${nextTheme} theme`,
+            description: "Toggle light and dark appearance",
+            type: "menu" as const,
+            category: "Preferences",
+            metadata: { icon: nextTheme === "dark" ? Moon : SunDim },
+            action: () => setTheme(nextTheme),
+          },
+        ]),
+    ...(onRpcPanelOpenChange
+      ? [
+          {
+            id: "toggle-rpc-panel",
+            name: rpcPanelOpen ? "Hide RPC Panel" : "Show RPC Panel",
+            description: "Toggle the JSON-RPC protocol and network logs",
+            type: "menu" as const,
+            category: "Preferences",
+            metadata: { icon: PanelRight },
+            action: () => onRpcPanelOpenChange(!rpcPanelOpen),
+          },
+        ]
+      : []),
+  ];
+
   // Create server selection items
   const serverItems: CommandItem[] = connections.map((connection) => ({
     id: `server-${connection.id}`,
@@ -374,6 +440,9 @@ export function CommandPalette({
 
   // Create unified command items
   const commandItems: CommandItem[] = [
+    ...menuItems,
+    ...featureItems,
+    ...preferenceItems,
     ...globalItems,
     ...openInItems,
     ...serverItems,
@@ -494,8 +563,23 @@ export function CommandPalette({
     [onNavigate, onOpenChange, onServerSelect]
   );
 
-  const getIcon = (type: string, category?: string, itemName?: string) => {
+  const getIcon = (
+    type: string,
+    category?: string,
+    itemName?: string,
+    MenuIcon?: LucideIcon
+  ) => {
     switch (type) {
+      case "menu":
+        return (
+          <div className="bg-muted rounded-full p-2 flex items-center justify-center shrink-0">
+            {MenuIcon ? (
+              <MenuIcon className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <Search className="h-4 w-4 text-muted-foreground" />
+            )}
+          </div>
+        );
       case "tool":
         return (
           <div className="bg-blue-500/20 rounded-full p-2 flex items-center justify-center shrink-0">
@@ -584,29 +668,22 @@ export function CommandPalette({
               </div>
             );
           }
-        }
-        if (category === "Documentation") {
-          // Use MCP Use logo for MCP Use related documentation items
-          if (itemName?.includes("MCP Use") || itemName?.includes("mcp-use")) {
+          if (itemName?.includes("OpenCode")) {
             return (
-              <div className="bg-black/10 dark:bg-white/10 rounded-full p-2 flex items-center justify-center shrink-0">
-                <McpUseLogo
-                  className="h-4 w-4 text-black dark:text-white"
-                  size="sm"
+              <div className="bg-muted rounded-full p-2 flex items-center justify-center shrink-0">
+                <img
+                  src="https://cdn.simpleicons.org/opencode"
+                  alt="OpenCode"
+                  className="h-4 w-4 dark:invert"
                 />
               </div>
             );
           }
+        }
+        if (category === "Documentation") {
           return (
             <div className="bg-orange-500/20 rounded-full p-2 flex items-center justify-center shrink-0">
               <ExternalLink className="h-4 w-4 text-orange-500" />
-            </div>
-          );
-        }
-        if (category === "Community") {
-          return (
-            <div className="bg-purple-500/20 rounded-full p-2 flex items-center justify-center shrink-0">
-              <DiscordIcon className="h-4 w-4 text-purple-500" />
             </div>
           );
         }
@@ -791,7 +868,7 @@ export function CommandPalette({
                 onClick={() => handleSelect(item)}
                 className="[content-visibility:auto] relative z-10 cursor-pointer h-12 text-sm flex items-center gap-3 px-3 text-foreground select-none w-full text-left mt-1 first:mt-0"
               >
-                {getIcon(item.type, item.category, item.name)}
+                {getIcon(item.type, item.category, item.name, item.metadata?.icon)}
                 <span className="font-medium truncate flex-1 min-w-0">
                   {item.name}
                 </span>

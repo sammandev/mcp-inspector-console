@@ -1,3 +1,4 @@
+// Modified for the combined Inspector: add OpenCode install command and configuration generators.
 /**
  * Utility functions for generating MCP client configurations and commands
  */
@@ -299,6 +300,56 @@ export function generateCodexConfig(
     }
   }
 
+  return { config, envVars };
+}
+
+/**
+ * Build an `opencode mcp add` command that adds the server to OpenCode as a remote MCP server.
+ * Header values are written as quoted `{env:NAME}` references so secrets stay out of the command.
+ */
+export function generateOpenCodeCommand(
+  url: string,
+  name: string,
+  headers?: Record<string, string>
+): { command: string; envVars: Array<{ name: string; header: string }> } {
+  const envVars = Object.keys(headers ?? {}).map((header) => ({
+    name: headerToEnvVar(header),
+    header,
+  }));
+  let command = `opencode mcp add "${sanitizeServerName(name)}" --url ${escapeShellArg(url)}`;
+  for (const { name: envVar, header } of envVars) {
+    command += ` \\\n  --header ${escapeShellArg(`${header}={env:${envVar}}`)}`;
+  }
+  return { command, envVars };
+}
+
+/**
+ * Build an OpenCode `opencode.json` snippet that adds the server as a remote MCP server.
+ * Header values are written as `{env:NAME}` references so secrets stay out of the file.
+ */
+export function generateOpenCodeConfig(
+  url: string,
+  name: string,
+  headers?: Record<string, string>
+): { config: string; envVars: Array<{ name: string; header: string }> } {
+  const envVars = Object.keys(headers ?? {}).map((header) => ({
+    name: headerToEnvVar(header),
+    header,
+  }));
+  const server: Record<string, unknown> = { type: "remote", url };
+  if (envVars.length > 0) {
+    server.headers = Object.fromEntries(
+      envVars.map(({ name: envVar, header }) => [header, `{env:${envVar}}`])
+    );
+  }
+  const config = JSON.stringify(
+    {
+      $schema: "https://opencode.ai/config.json",
+      mcp: { servers: { [sanitizeServerName(name)]: server } },
+    },
+    null,
+    2
+  );
   return { config, envVars };
 }
 
