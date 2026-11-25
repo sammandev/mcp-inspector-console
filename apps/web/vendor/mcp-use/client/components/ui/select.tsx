@@ -1,3 +1,4 @@
+// Modified for the combined Inspector: defer popup unmount via preventUnmountOnClose for Base UI 1.9.
 "use client";
 
 import {
@@ -38,7 +39,7 @@ import { Elevated } from "@/client/lib/elevated";
 interface SelectContextValue {
   value: string;
   open: boolean;
-  actionsRef: React.RefObject<{ unmount: () => void } | null>;
+  actionsRef: React.RefObject<SelectPrimitive.Root.Actions | null>;
 }
 
 const SelectContext = createContext<SelectContextValue | null>(null);
@@ -118,7 +119,7 @@ function Select({
 }: SelectProps) {
   const [internalValue, setInternalValue] = useState(defaultValue ?? "");
   const [open, setOpen] = useState(false);
-  const actionsRef = useRef<{ unmount: () => void } | null>(null);
+  const actionsRef = useRef<SelectPrimitive.Root.Actions | null>(null);
   const currentValue = value !== undefined ? value : internalValue;
 
   const items = useMemo(() => collectSelectItems(children), [children]);
@@ -144,7 +145,12 @@ function Select({
         value={currentValue === "" ? null : currentValue}
         onValueChange={handleValueChange}
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={(nextOpen, details) => {
+          // Base UI >=1.9 only defers unmount when asked; keep the popup
+          // mounted until the exit spring releases it via actionsRef.
+          if (!nextOpen) details.preventUnmountOnClose();
+          setOpen(nextOpen);
+        }}
         actionsRef={actionsRef}
         items={items}
         disabled={disabled}

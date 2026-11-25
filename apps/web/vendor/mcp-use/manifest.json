@@ -1180,6 +1180,8 @@
     "client/components/tools/ToolExecutionPanel.tsx",
     "client/components/tools/ToolResultDisplay.tsx",
     "client/components/tools/useToolExecution.ts",
+    "client/components/ui/dropdown.tsx",
+    "client/components/ui/select.tsx",
     "client/context/InspectorContext.tsx",
     "client/context/ThemeContext.tsx",
     "client/utils/connectionUpdates.ts",

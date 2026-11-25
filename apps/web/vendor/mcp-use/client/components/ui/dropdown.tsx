@@ -1,3 +1,4 @@
+// Modified for the combined Inspector: defer popup unmount via preventUnmountOnClose for Base UI 1.9.
 "use client";
 
 import {
@@ -286,7 +287,10 @@ function DropdownMenu({
   const actionsRef = useRef<DropdownMenuActions | null>(null);
 
   const handleOpenChange = useCallback(
-    (next: boolean) => {
+    (next: boolean, details: Menu.Root.ChangeEventDetails) => {
+      // Base UI >=1.9 only defers unmount when asked; keep the popup
+      // mounted until the exit spring releases it via actionsRef.
+      if (!next) details.preventUnmountOnClose();
       if (openProp === undefined) setInternalOpen(next);
       onOpenChange?.(next);
     },
