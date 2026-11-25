@@ -1,4 +1,4 @@
-import type { ConnectionProfile } from '@combined-mcp-inspector/contract'
+import type { ConnectionProfile } from '@mcp-inspector-console/contract'
 import { createHash, timingSafeEqual } from 'node:crypto'
 import { Hono } from 'hono'
 
@@ -30,7 +30,7 @@ export function createGatewayApp(config: GatewayConfig): Hono {
   const app = new Hono()
 
   app.get('/health', (context) => context.json({
-    service: 'combined-mcp-inspector-gateway',
+    service: 'mcp-inspector-console-gateway',
     instanceId: process.env.GATEWAY_INSTANCE_ID ?? '',
   }))
 

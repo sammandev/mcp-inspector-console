@@ -78,6 +78,7 @@ for (const theme of ["light", "dark"] as const) {
       const tabs = page.getByRole("list", { name: "Inspector tabs" });
       await expect(tabs.getByRole("button", { name: "Protocol", exact: true })).toBeVisible({ timeout: 20_000 });
       await tabs.getByRole("button", { name: "Server Metadata", exact: true }).click();
+      await expect(page).toHaveTitle("Inspector | Server Metadata");
       const metadataTitle = page.getByTestId("server-info-modal-title");
       await expect(metadataTitle).toBeVisible();
       const metadataHeader = metadataTitle.locator("xpath=../..");
@@ -92,6 +93,7 @@ for (const theme of ["light", "dark"] as const) {
       ]) {
         const menu = tabs.getByRole("button", { name, exact: true });
         await menu.click();
+        await expect(page).toHaveTitle(`Inspector | ${name}`);
         const panel = page.getByTestId(id);
         const header = panel.locator("header");
         const heading = header.getByRole("heading", { name, exact: true });
@@ -222,7 +224,7 @@ test("the default entry opens the published mcp-use inspector in dark mode", asy
   await page.goto("/?theme=dark");
 
   await expect(page).toHaveURL(/\/mcp\/inspector\?theme=dark$/);
-  await expect(page).toHaveTitle("Inspector | mcp-use");
+  await expect(page).toHaveTitle("Inspector | Servers");
   const heading = page.getByRole("heading", { name: "MCP Inspector", exact: true });
   await expect(heading).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("heading", { name: "Connected Servers", exact: true })).toBeVisible();

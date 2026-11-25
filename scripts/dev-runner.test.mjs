@@ -26,11 +26,11 @@ class FakeChild extends EventEmitter {
 function harness(overrides = {}) {
   const log = []
   const children = []
-  const healthResponses = overrides.healthResponses ?? [{ status: 200, service: 'combined-mcp-inspector-gateway', instanceId: 'instance' }]
+  const healthResponses = overrides.healthResponses ?? [{ status: 200, service: 'mcp-inspector-console-gateway', instanceId: 'instance' }]
   const adapter = {
     platform: overrides.platform ?? 'win32',
     spawn(command, args, options) {
-      const name = args.includes('@combined-mcp-inspector/gateway') ? 'gateway' : 'web'
+      const name = args.includes('@mcp-inspector-console/gateway') ? 'gateway' : 'web'
       log.push(['spawn', name, { detached: options.detached, env: { ...options.env } }])
       const child = new FakeChild(name, log)
       children.push(child)

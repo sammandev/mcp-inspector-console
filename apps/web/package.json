@@ -1,18 +1,18 @@
 {
-  "name": "@combined-mcp-inspector/web",
+  "name": "@mcp-inspector-console/web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "vite build",
     "dev": "vite",
-    "test": "vitest run --config ../../vitest.config.ts src/mcp-use-exports.test.ts src/App.test.tsx src/vite-proxy-policy.test.ts src/features/model.test.ts src/features/analysis.test.ts src/features/network.test.ts src/features/traffic.test.ts src/features/toolLoad.test.ts src/opencode-config.test.ts local-relay.test.ts inspector-cli.test.ts vendor-provenance.test.ts",
+    "test": "vitest run --config ../../vitest.config.ts src/mcp-use-exports.test.ts src/App.test.tsx src/vite-proxy-policy.test.ts src/features/model.test.ts src/features/analysis.test.ts src/features/network.test.ts src/features/traffic.test.ts src/features/toolLoad.test.ts src/features/documentTitle.test.ts src/opencode-config.test.ts local-relay.test.ts inspector-cli.test.ts vendor-provenance.test.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@base-ui/react": "1.9.0",
-    "@combined-mcp-inspector/contract": "workspace:*",
     "@hono/node-server": "2.1.11",
+    "@mcp-inspector-console/contract": "workspace:*",
     "@mcp-use/agent": "2.0.27",
     "@mcp-use/client": "2.4.6",
     "@mcp-use/inspector": "20.3.33",

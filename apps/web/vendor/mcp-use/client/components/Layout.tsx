@@ -1,4 +1,4 @@
-// Modified for the combined Inspector: keep legacy Inspector links on Protocol, put the RPC Panel switch and Command Palette search in the header, list menus and their features in the Command Palette, and make the RPC Panel resizable.
+// Modified for the combined Inspector: keep legacy Inspector links on Protocol, put the RPC Panel switch and Command Palette search in the header, list menus and their features in the Command Palette, make the RPC Panel resizable, and title the browser tab "Inspector | <open page>".
 import { Spinner } from "@/client/components/ui/spinner";
 import { TooltipProvider } from "@/client/components/ui/tooltip";
 import {
@@ -53,6 +53,8 @@ import { getInspectorBodyClassName } from "./layout/inspectorLayoutClasses";
 import { useTunnelConnectionSync } from "./layout/useTunnelConnectionSync";
 import { RpcPanelResizeHandle, useRpcPanelWidth } from "../../../../src/features/RpcPanelResize.js";
 import { revealSection } from "../../../../src/features/revealSection.js";
+import { useInspectorDocumentTitle } from "../../../../src/features/documentTitle.js";
+import { LAYOUT_TABS } from "./layout/layoutTabs";
 
 interface LayoutProps {
   children: ReactNode;
@@ -911,6 +913,15 @@ export function Layout({ children }: LayoutProps) {
             displayServerRef.current.serverInfo ?? displayServer.serverInfo,
         }
       : displayServer;
+
+  const activeTabDef = LAYOUT_TABS.find((tab) => tab.id === activeTab);
+  useInspectorDocumentTitle(
+    displayServerWithStableMetadata
+      ? activeTabDef && "label" in activeTabDef
+        ? activeTabDef.label
+        : undefined
+      : "Servers"
+  );
 
   // Apply embedded styling
   const isSingleTab = isEmbedded && embeddedConfig.singleTab === true;

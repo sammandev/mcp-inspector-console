@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { THEME_STORAGE_KEY } from "./useProviderTheme.js";
-import type { UnifiedInspectorSession } from "@combined-mcp-inspector/contract";
+import type { UnifiedInspectorSession } from "@mcp-inspector-console/contract";
 import { publishedExports } from "./mcp-use-exports.js";
 import { AppShell, type Destination } from "./components/AppShell.js";
 import { FeaturePlaceholder } from "./components/FeaturePlaceholder.js";

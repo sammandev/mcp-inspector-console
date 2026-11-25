@@ -1,5 +1,5 @@
 {
-  "name": "@combined-mcp-inspector/contract",
+  "name": "@mcp-inspector-console/contract",
   "version": "0.0.0",
   "private": true,
   "type": "module",

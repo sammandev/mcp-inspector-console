@@ -1,6 +1,9 @@
-# Combined MCP Inspector
+# MCP Inspector Console
 
-Standalone pnpm workspace for a combined MCP Inspector. It serves the mcp-use
+Standalone pnpm workspace (`mcp-inspector-console`) for a combined MCP
+Inspector. The header shows "MCP Inspector Console", the browser tab reads
+`Inspector | <open page>` (for example `Inspector | Server Metadata`), and the
+sidebar footer credits mcp-use. It serves the mcp-use
 Inspector UI/UX at `/mcp/inspector` and integrates Official MCP Inspector
 workflows into four focused destinations in the same interface and styling.
 The original workspace scaffold remains at `/workspace`.
@@ -161,7 +164,7 @@ them. To check the
 built assets together with the mounted Inspector locally, run:
 
 ```text
-pnpm --filter @combined-mcp-inspector/web exec vite preview --host 127.0.0.1
+pnpm --filter @mcp-inspector-console/web exec vite preview --host 127.0.0.1
 ```
 
 Vite preview is for local verification, not production deployment.

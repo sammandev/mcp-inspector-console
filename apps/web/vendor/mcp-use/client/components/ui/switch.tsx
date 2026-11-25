@@ -1,3 +1,4 @@
+// Modified for the combined Inspector: dim the checked track in dark mode, where the primary token is near-white.
 "use client";
 
 import {
@@ -224,6 +225,7 @@ const FluidSwitch = forwardRef<HTMLDivElement, FluidSwitchProps>(
           className={cn(
             "relative shrink-0 rounded-full outline-none cursor-pointer",
             "transition-colors duration-80",
+            "[--switch-on:var(--primary)] dark:[--switch-on:color-mix(in_oklab,var(--primary)_55%,var(--background))]",
             "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)] focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           )}
           style={{
@@ -231,8 +233,8 @@ const FluidSwitch = forwardRef<HTMLDivElement, FluidSwitchProps>(
             height: TRACK_HEIGHT,
             backgroundColor: checked
               ? hovered
-                ? "color-mix(in oklab, var(--primary) 88%, black)"
-                : "var(--primary)"
+                ? "color-mix(in oklab, var(--switch-on) 88%, black)"
+                : "var(--switch-on)"
               : hovered
                 ? (uncheckedTrackColorHovered ??
                   "color-mix(in oklab, var(--accent), rgb(var(--overlay)) 10%)")

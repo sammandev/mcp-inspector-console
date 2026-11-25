@@ -1,5 +1,5 @@
 {
-  "name": "combined-mcp-inspector",
+  "name": "mcp-inspector-console",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@12.23.0",

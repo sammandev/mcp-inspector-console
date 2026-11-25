@@ -1,5 +1,5 @@
 {
-  "name": "@combined-mcp-inspector/feature-parity",
+  "name": "@mcp-inspector-console/feature-parity",
   "version": "0.0.0",
   "private": true,
   "type": "module",

@@ -1,5 +1,5 @@
 {
-  "name": "@combined-mcp-inspector/gateway",
+  "name": "@mcp-inspector-console/gateway",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@combined-mcp-inspector/contract": "workspace:*",
+    "@mcp-inspector-console/contract": "workspace:*",
     "hono": "4.13.21"
   },
   "devDependencies": {

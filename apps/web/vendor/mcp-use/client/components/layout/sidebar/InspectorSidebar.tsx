@@ -1,4 +1,4 @@
-// Modified for the combined Inspector: the RPC Panel switch, theme toggle and Command Palette moved to the header, so the sidebar footer is gone.
+// Modified for the combined Inspector: the RPC Panel switch, theme toggle and Command Palette moved to the header, and the sidebar footer now credits mcp-use.
 import { cn } from "@/client/lib/utils";
 import type { TabType } from "@/client/context/InspectorContext";
 import type { McpServer } from "@mcp-use/client/react";
@@ -47,6 +47,19 @@ export function InspectorSidebar({
           />
         </SidebarProximityNav>
       </div>
+      {!collapsed && (
+        <footer className="shrink-0 border-t border-sidebar-border/60 px-4 py-2.5 text-xs text-muted-foreground">
+          Built on{" "}
+          <a
+            href="https://github.com/mcp-use/mcp-use"
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium text-foreground/80 underline-offset-2 hover:text-foreground hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            mcp-use
+          </a>
+        </footer>
+      )}
       <SidebarRail
         collapsed={collapsed}
         onToggle={() => onCollapsedChange(!collapsed)}

@@ -17,7 +17,7 @@ class Child extends EventEmitter {
 function lifecycleHarness(overrides = {}) {
   const log = []
   const children = []
-  const body = { service: 'combined-mcp-inspector-gateway', instanceId: 'instance' }
+  const body = { service: 'mcp-inspector-console-gateway', instanceId: 'instance' }
   let groupAlive = false
   const adapter = {
     platform: 'linux',
@@ -26,7 +26,7 @@ function lifecycleHarness(overrides = {}) {
     now: (() => { let tick = 0; return () => tick++ })(),
     deadlineMs: 10,
     spawn(command, args) {
-      const name = args.includes('@combined-mcp-inspector/gateway') ? 'gateway' : 'web'
+      const name = args.includes('@mcp-inspector-console/gateway') ? 'gateway' : 'web'
       const child = new Child(name, 100 + children.length)
       children.push(child)
       log.push(['spawn', name])

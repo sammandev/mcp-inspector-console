@@ -106,8 +106,8 @@ export function inspectorDocument(html: string, origin: string): string {
     `<script>${assignments}try{localStorage.setItem("MCP_USE_ANONYMIZED_TELEMETRY","false");}catch(e){}${PROCESS_SHIM}</script>`,
   ].join("\n    ");
   return html
-    .replace(/<title>[^<]*<\/title>/, "<title>Inspector | mcp-use</title>")
-    .replace(/<meta name="description"[^>]*>/, '<meta name="description" content="MCP Inspector by mcp-use with Official Inspector workflows" />')
+    .replace(/<title>[^<]*<\/title>/, "<title>Inspector</title>")
+    .replace(/<meta name="description"[^>]*>/, '<meta name="description" content="MCP Inspector Console: the mcp-use Inspector with Official Inspector workflows" />')
     .replace("</head>", `  ${head}\n  </head>`);
 }
 

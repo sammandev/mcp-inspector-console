@@ -1,3 +1,4 @@
+// Modified for the combined Inspector: brand the header logo as "MCP Inspector Console".
 import { cn } from "@/client/lib/utils";
 import { motion } from "motion/react";
 import { useState } from "react";
@@ -122,10 +123,10 @@ export default function LogoAnimated({
       {labelParts === "full" ? (
         <>
           <span className="text-xl font-bold leading-none text-foreground [text-box:trim-both_cap_alphabetic]">
-            mcp-use
+            MCP
           </span>
           <span className="text-lg font-sans font-light leading-none tracking-wide text-muted-foreground [text-box:trim-both_cap_alphabetic]">
-            Inspector
+            Inspector Console
           </span>
         </>
       ) : (

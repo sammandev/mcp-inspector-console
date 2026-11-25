@@ -9,8 +9,8 @@ import type {
   SessionDiagnostics,
   SessionSubscriptions,
   UnifiedInspectorSession,
-} from '@combined-mcp-inspector/contract'
-import { toBrowserSafeProfile } from '@combined-mcp-inspector/contract'
+} from '@mcp-inspector-console/contract'
+import { toBrowserSafeProfile } from '@mcp-inspector-console/contract'
 
 const ok = <T>(value: T) => ({ ok: true, value } as const)
 const backendProfile: BackendConnectionProfile = {

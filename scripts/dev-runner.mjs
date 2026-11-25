@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 
 const HOST = '127.0.0.1'
-const SERVICE = 'combined-mcp-inspector-gateway'
+const SERVICE = 'mcp-inspector-console-gateway'
 const TERMINATION_GRACE_MS = 2_000
 
 function hasExited(child) {
@@ -167,7 +167,7 @@ export async function runDev({
     })
   }
 
-  const gateway = start(['--filter', '@combined-mcp-inspector/gateway', 'dev'], {
+  const gateway = start(['--filter', '@mcp-inspector-console/gateway', 'dev'], {
     GATEWAY_HOST: HOST,
     GATEWAY_PORT: String(gatewayPort),
     GATEWAY_TOKEN: adapter.token,
@@ -216,7 +216,7 @@ export async function runDev({
   }
 
   console.log(`Gateway healthy at http://${HOST}:${gatewayPort}`)
-  const web = start(['--filter', '@combined-mcp-inspector/web', 'dev'], {
+  const web = start(['--filter', '@mcp-inspector-console/web', 'dev'], {
     GATEWAY_URL: `http://${HOST}:${gatewayPort}`,
     GATEWAY_TOKEN: adapter.token,
     WEB_HOST: HOST,
