@@ -420,6 +420,7 @@ export function useChatMessagesClientSide({
             temperature: llmConfig.temperature,
             baseUrl: llmConfig.baseUrl,
             credentials: llmConfig.credentials,
+            extraHeaders: llmConfig.extraHeaders,
           }),
           mcpServers: [
             ...(skillConnection ? [skillConnection] : []),

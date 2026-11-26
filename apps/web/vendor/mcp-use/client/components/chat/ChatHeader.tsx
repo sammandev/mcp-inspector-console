@@ -1,3 +1,4 @@
+// Modified for the combined Inspector: forward saved provider configurations to the config dialog.
 import type { LLMConfig } from "./types";
 
 import { Button } from "@/client/components/ui/button";
@@ -7,7 +8,7 @@ import {
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
 import { Copy, Download, SquarePen } from "lucide-react";
-import { ConfigurationDialog } from "./ConfigurationDialog";
+import { ConfigurationDialog, type SavedConfigurations } from "./ConfigurationDialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -70,6 +71,8 @@ interface ChatHeaderProps {
   };
   useManagedCloud?: boolean;
   onSaveManagedCloud?: () => void;
+  /** Inspector account mode: saved provider configuration selector for the dialog. */
+  savedConfigurations?: SavedConfigurations;
   /** When true, shows Clear Config in the BYOK tab of the config dialog. */
   showClearButton?: boolean;
   /** Label for the clear/new-chat button. Default: "New Chat". */
@@ -119,6 +122,7 @@ export function ChatHeader({
   managedCloudInfo,
   useManagedCloud,
   onSaveManagedCloud,
+  savedConfigurations,
   showClearButton,
   clearButtonLabel,
   hideTitle,
@@ -303,6 +307,7 @@ export function ChatHeader({
             managedCloudInfo={managedCloudInfo}
             useManagedCloud={useManagedCloud}
             onSaveManagedCloud={onSaveManagedCloud}
+            savedConfigurations={savedConfigurations}
           />
         )}
       </div>

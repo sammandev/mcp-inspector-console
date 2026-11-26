@@ -100,6 +100,62 @@ describe("Inspector account API", () => {
       service, new Set(), new URL("http://localhost:4714")))!;
     expect(response.status).toBe(400);
   });
+  it("keeps several named OpenAI-compatible configurations and updates one by id without losing its key", async () => {
+    const { service, cookie, session } = await relayFixture();
+    const save = async (body: unknown) => (await service.handle(request("providers", body, cookie, session.id)))!;
+    const second = await (await save({ provider: "openai-compatible", name: "Team key", model: "other-model",
+      baseUrl: "http://localhost:4714/v1", apiKey: "second-private-key" })).json() as { id: string; name: string };
+    expect(second.name).toBe("Team key");
+    const rows = await (await service.handle(request("providers", undefined, cookie, session.id)))!.json() as { id: string }[];
+    expect(rows).toHaveLength(2);
+    const updated = await save({ id: second.id, provider: "openai-compatible", name: "Team key", model: "switched-model",
+      baseUrl: "http://localhost:4714/v1" });
+    expect(await updated.json()).toMatchObject({ id: second.id, model: "switched-model", keySaved: true });
+    expect((await service.handle(request("providers", undefined, cookie, session.id)))!.status).toBe(200);
+    expect(await (await service.handle(request("providers", undefined, cookie, session.id)))!.json()).toHaveLength(2);
+    const missing = await save({ id: "f".repeat(64), provider: "openai-compatible", model: "m", baseUrl: "http://localhost:4714/v1" });
+    expect(missing.status).toBe(404);
+    const moved = await save({ id: second.id, provider: "openai-compatible", name: "Team key", model: "m",
+      baseUrl: "http://localhost:11434/v1" });
+    expect(await moved.json()).toMatchObject({ id: second.id, keySaved: false });
+  });
+  it("discovers models for a saved configuration by id but never sends its key to another endpoint", async () => {
+    const { service, cookie, session, target } = await relayFixture();
+    const id = /relay\/[^/]+\/([a-f0-9]{64})\//.exec(target)![1]!;
+    const seen: { url: string; auth: string | null }[] = [];
+    vi.stubGlobal("fetch", async (url: URL, init: RequestInit) => {
+      seen.push({ url: String(url), auth: new Headers(init.headers).get("authorization") });
+      return Response.json({ data: [{ id: "m1" }] });
+    });
+    const discover = (baseUrl: string) => relayProviderRequest(request("discover",
+      { id, provider: "openai-compatible", model: "fixture-model", baseUrl }, cookie, session.id),
+      service, new Set(["http://localhost:4714", "http://localhost:11434"]), new URL("http://localhost:4714"));
+    expect((await discover("http://localhost:4714/v1"))!.status).toBe(200);
+    expect((await discover("http://localhost:11434/v1"))!.status).toBe(200);
+    expect(seen).toEqual([
+      { url: "http://localhost:4714/v1/models", auth: "Bearer fixture-private-key" },
+      { url: "http://localhost:11434/v1/models", auth: null },
+    ]);
+  });
+  it("applies the selected reasoning effort to chat completions and rejects unknown values", async () => {
+    const { service, cookie, target } = await relayFixture();
+    const bodies: unknown[] = [];
+    vi.stubGlobal("fetch", async (_url: URL, init: RequestInit) => {
+      bodies.push(JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as ArrayBuffer)));
+      return Response.json({ choices: [] });
+    });
+    const send = (effort?: string) => relayProviderRequest(new Request(target, { method: "POST",
+      headers: { Cookie: cookie, ...(effort ? { "X-Inspector-Reasoning-Effort": effort } : {}) },
+      body: JSON.stringify({ model: "fixture-model", messages: [] }),
+    }), service, new Set(["http://localhost:4714"]), new URL("http://localhost:4714"));
+    expect((await send("high"))!.status).toBe(200);
+    expect((await send())!.status).toBe(200);
+    expect((await send("extreme"))!.status).toBe(400);
+    expect(bodies).toEqual([
+      { model: "fixture-model", messages: [], reasoning_effort: "high" },
+      { model: "fixture-model", messages: [] },
+    ]);
+  });
   it("accepts the admin email and issues an HttpOnly cookie without returning credentials", async () => {
     const service = fixture();
     const response = (await service.handle(request("login", { username: "admin@example.test", password: "fixture-secret" })))!;

@@ -1,6 +1,6 @@
 import { AccountError } from "./auth.js";
-import { ACCOUNT_PATH, AccountService, providerRecordId, storedProvider } from "./api.js";
-import { providerInput, type SavedProvider } from "./contracts.js";
+import { ACCOUNT_PATH, AccountService, keyForEndpoint, providerRecordId, storedProvider } from "./api.js";
+import { providerInput, reasoningEfforts, type SavedProvider } from "./contracts.js";
 import { parsePegaAiModelOptions } from "../vendor/mcp-use/client/components/chat/pegaAi.js";
 
 const defaults = {
@@ -55,6 +55,23 @@ function modelRows(payload: unknown, provider: SavedProvider["provider"]): { id:
   });
 }
 
+export const REASONING_EFFORT_HEADER = "X-Inspector-Reasoning-Effort";
+
+// The browser agent cannot add body fields, so the chosen effort travels as a header and is applied here.
+async function requestBody(request: Request, path: string): Promise<ArrayBuffer | string> {
+  const effort = request.headers.get(REASONING_EFFORT_HEADER);
+  if (!effort) return request.arrayBuffer();
+  if (!(reasoningEfforts as readonly string[]).includes(effort)) throw new AccountError(400, "Unsupported reasoning effort");
+  if (path !== "chat/completions" && path !== "responses") return request.arrayBuffer();
+  let body: unknown;
+  try { body = await request.json(); } catch { throw new AccountError(400, "Provider request body must be JSON"); }
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw new AccountError(400, "Provider request body must be a JSON object");
+  const record = body as Record<string, unknown>;
+  if (path === "chat/completions") record.reasoning_effort = effort;
+  else record.reasoning = { ...(record.reasoning && typeof record.reasoning === "object" ? record.reasoning : {}), effort };
+  return JSON.stringify(record);
+}
+
 export async function relayProviderRequest(
   request: Request, accounts: AccountService, approvedOrigins: ReadonlySet<string>, pegaOrigin: URL,
 ): Promise<Response | undefined> {
@@ -72,9 +89,9 @@ export async function relayProviderRequest(
       const parsed = providerInput.safeParse(await request.json());
       if (!parsed.success) throw new AccountError(400, "Invalid provider configuration");
       const input = parsed.data;
-      const id = providerRecordId(input.provider, input.baseUrl);
+      const id = input.id ?? providerRecordId(input.provider, input.baseUrl, input.name);
       const stored = await accounts.store.get(session, "provider", id);
-      setting = { ...input, id, apiKey: input.apiKey?.trim() || (stored ? storedProvider.parse(stored).apiKey : "") };
+      setting = { ...input, id, apiKey: input.apiKey?.trim() || keyForEndpoint(stored ? storedProvider.parse(stored) : null, input) };
       path = input.provider === "ollama" ? "api/tags" : "models";
     } else {
       if (request.method !== "POST" && request.method !== "GET") throw new AccountError(405, "Method not allowed");
@@ -107,7 +124,7 @@ export async function relayProviderRequest(
     const upstream = await fetch(target, {
       method: discover ? "GET" : request.method,
       headers: authHeaders(setting),
-      body: !discover && request.method === "POST" ? await request.arrayBuffer() : undefined,
+      body: !discover && request.method === "POST" ? await requestBody(request, path) : undefined,
       signal, redirect: "error",
     });
     if (!upstream.ok) {

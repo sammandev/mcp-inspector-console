@@ -175,6 +175,24 @@ describe("PegaAI chat defaults", () => {
     expect(options.map(option => option.textContent?.trim())).toEqual(["OpenAI Compatible"]);
     expect(screen.queryByRole("img", { name: "OpenAI" })).toBeNull();
   });
+  it("lets an account choose a saved configuration or start a named new one", async () => {
+    const onSelect = vi.fn();
+    const onNameChange = vi.fn();
+    render(createElement(ThemeProvider, { defaultTheme: "light", children: createElement(ConfigurationDialog, {
+      open: true, onOpenChange: () => {}, tempProvider: "openai-compatible", tempModel: PEGA_AI_DEFAULT_MODEL,
+      tempApiKey: "", tempBaseUrl: PEGA_AI_BASE_URL, onProviderChange: () => {}, onModelChange: () => {},
+      onApiKeyChange: () => {}, onBaseUrlChange: () => {}, onSave: () => {},
+      savedConfigurations: { options: [{ id: "a".repeat(64), label: "PegaAI · Pega-Chat" }], selectedId: "a".repeat(64),
+        onSelect, name: "", onNameChange },
+    }) }));
+    fireEvent.change(screen.getByTestId("chat-config-name-input"), { target: { value: "Team gateway" } });
+    expect(onNameChange).toHaveBeenCalledWith("Team gateway");
+    fireEvent.click(screen.getByTestId("chat-config-saved-select"));
+    const option = await screen.findByRole("option", { name: "New configuration" });
+    fireEvent.pointerDown(option); fireEvent.mouseDown(option);
+    fireEvent.pointerUp(option); fireEvent.mouseUp(option); fireEvent.click(option);
+    await waitFor(() => expect(onSelect).toHaveBeenCalledWith(null));
+  });
   it("does not reconnect a previously saved built-in Manufact fallback", () => {
     localStorage.setItem("mcp-inspector-llm-config", JSON.stringify({
       provider: "openai-compatible", model: "openai/gpt-5.6-luna", apiKey: "server-managed",

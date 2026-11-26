@@ -30,8 +30,15 @@ function equalSecret(left: string, right: string): boolean {
   const digest = (value: string) => createHash("sha256").update(value).digest();
   return timingSafeEqual(digest(left), digest(right));
 }
-export function providerRecordId(provider: string, baseUrl: string): string {
-  return createHash("sha256").update(`${provider}:${baseUrl.replace(/\/+$/, "")}`).digest("hex");
+export function providerRecordId(provider: string, baseUrl: string, name?: string): string {
+  const endpoint = `${provider}:${baseUrl.replace(/\/+$/, "")}`;
+  // Unnamed records keep their original id so existing saved providers remain addressable.
+  return createHash("sha256").update(name ? `${endpoint}:${name}` : endpoint).digest("hex");
+}
+/** A saved key never follows a configuration to a different provider endpoint. */
+export function keyForEndpoint(saved: SavedProvider | null, input: { provider: string; baseUrl: string }): string {
+  const endpoint = (value: string) => value.replace(/\/+$/, "");
+  return saved && saved.provider === input.provider && endpoint(saved.baseUrl) === endpoint(input.baseUrl) ? saved.apiKey ?? "" : "";
 }
 function publicProvider(value: SavedProvider) {
   const { apiKey, ...setting } = value;
@@ -161,11 +168,12 @@ export class AccountService {
           throw new AccountError(400, "Provider endpoint must be an HTTP(S) URL without credentials, query or fragment");
         }
       }
-      const id = providerRecordId(input.provider, input.baseUrl);
+      const id = input.id ?? providerRecordId(input.provider, input.baseUrl, input.name);
+      if (input.id && !(await this.store.get(session, "provider", input.id))) throw new AccountError(404, "Provider settings were not found");
       const value = await this.store.mutate(session, "provider", id, previous => {
         const old = previous ? storedProvider.parse(previous) : null;
         const { removeKey, apiKey, ...setting } = input;
-        return { ...setting, id, apiKey: removeKey ? "" : apiKey?.trim() || old?.apiKey || "", updatedAt: new Date().toISOString() };
+        return { ...setting, id, apiKey: removeKey ? "" : apiKey?.trim() || keyForEndpoint(old, input), updatedAt: new Date().toISOString() };
       });
       return Response.json(publicProvider(storedProvider.parse(value)));
     }

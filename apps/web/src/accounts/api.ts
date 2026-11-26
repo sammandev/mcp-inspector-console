@@ -6,7 +6,7 @@ export const sessionSchema = z.object({
 export type BrowserSession = z.infer<typeof sessionSchema>;
 export const okSchema = z.object({ ok: z.boolean() });
 export const providerSchema = z.object({
-  id: z.string(), provider: z.enum(["openai", "openai-compatible", "anthropic", "google", "openrouter", "ollama"]),
+  id: z.string(), name: z.string().optional(), provider: z.enum(["openai", "openai-compatible", "anthropic", "google", "openrouter", "ollama"]),
   model: z.string(), baseUrl: z.string(), keySaved: z.boolean(), temperature: z.number().optional(), updatedAt: z.string().optional(),
 });
 export type PublicProvider = z.infer<typeof providerSchema>;

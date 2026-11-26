@@ -1,4 +1,4 @@
-// Modified for the combined Inspector: remove hosted onboarding and support PegaAI model discovery.
+// Modified for the combined Inspector: remove hosted onboarding, support PegaAI model discovery and saved account configurations.
 import { Check, ChevronsUpDown, Eye, EyeOff, Key, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { z } from "zod";
@@ -163,7 +163,18 @@ interface ConfigurationDialogProps {
   useManagedCloud?: boolean;
   /** Persist Manufact cloud selection and switch chat to managed mode. */
   onSaveManagedCloud?: () => void;
+  /** Inspector account mode: choose which saved configuration to edit, or a new one (null). */
+  savedConfigurations?: SavedConfigurations;
 }
+
+export interface SavedConfigurations {
+  options: { id: string; label: string }[];
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  name: string;
+  onNameChange: (name: string) => void;
+}
+const NEW_CONFIGURATION = "__new__";
 
 const CHAT_CONFIG_TABS_ID = "chat-config-source";
 // Curate only this picker; cloud evals and BYOK still use the full catalog.
@@ -328,6 +339,7 @@ export function ConfigurationDialog({
   managedCloudInfo,
   useManagedCloud = false,
   onSaveManagedCloud,
+  savedConfigurations,
 }: ConfigurationDialogProps) {
   const [models, setModels] = useState<ModelOption[]>([]);
   const account = useOptionalAccount();
@@ -344,14 +356,18 @@ export function ConfigurationDialog({
     hostedInspector || freeTierInfo || managedCloudInfo
   );
   const isCloudTab = Boolean(managedCloudInfo && configTabIndex === 0);
+  const editingId = savedConfigurations?.selectedId ?? null;
   useEffect(() => {
     if (!accountClient || !open) return;
     let cancelled = false;
+    const sameEndpoint = (row: { provider: string; baseUrl: string }) =>
+      row.provider === tempProvider && row.baseUrl.replace(/\/+$/, "") === tempBaseUrl.replace(/\/+$/, "");
     void accountClient.request("providers", z.array(providerSchema)).then(rows => {
-      if (!cancelled) setKeySaved(rows.some(row => row.provider === tempProvider && row.baseUrl === tempBaseUrl && row.keySaved));
+      if (!cancelled) setKeySaved(rows.some(row => sameEndpoint(row) && row.keySaved &&
+        (savedConfigurations ? row.id === editingId : true)));
     }).catch(cause => { if (!cancelled && !accountClient.signal.aborted) setModelError(cause instanceof Error ? cause.message : "Could not load saved key status"); });
     return () => { cancelled = true; };
-  }, [accountClient, open, tempProvider, tempBaseUrl]);
+  }, [accountClient, open, tempProvider, tempBaseUrl, editingId, Boolean(savedConfigurations)]);
 
   useEffect(() => {
     if (open) {
@@ -398,6 +414,7 @@ export function ConfigurationDialog({
         let fetchedModels: ModelOption[] = [];
         if (accountClient) {
           fetchedModels = await accountClient.request("discover", z.array(z.object({ id: z.string(), displayName: z.string().optional() })), "POST", {
+            ...(editingId ? { id: editingId } : {}),
             provider: tempProvider, model: tempModel, baseUrl: tempBaseUrl,
             ...(tempApiKey.trim() ? { apiKey: tempApiKey.trim() } : {}),
           });
@@ -439,7 +456,7 @@ export function ConfigurationDialog({
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [tempApiKey, tempBaseUrl, tempProvider, open, modelsCacheKey, isCloudTab, accountClient]);
+  }, [tempApiKey, tempBaseUrl, tempProvider, open, modelsCacheKey, isCloudTab, accountClient, editingId]);
 
   const showBaseUrlField = providerSupportsBaseUrl(tempProvider);
   const apiKeyOptional = !providerRequiresApiKey(tempProvider, tempBaseUrl);
@@ -551,6 +568,44 @@ export function ConfigurationDialog({
                 <TabsSubtleItem index={1} label="API key" />
               </TabsSubtle>
             </div>
+          )}
+          {!isCloudTab && savedConfigurations && (
+            <>
+              <div className="space-y-2">
+                <Label>Saved configuration</Label>
+                <Select
+                  value={savedConfigurations.selectedId ?? NEW_CONFIGURATION}
+                  onValueChange={(v) => savedConfigurations.onSelect(v === NEW_CONFIGURATION ? null : String(v))}
+                >
+                  <SelectTrigger className="rounded-md" data-testid="chat-config-saved-select">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {savedConfigurations.options.map((option) => (
+                      <SelectItem key={option.id} value={option.id} label={option.label}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={NEW_CONFIGURATION} label="New configuration">
+                      New configuration
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Name (optional)</Label>
+                <Input
+                  value={savedConfigurations.name}
+                  maxLength={80}
+                  onChange={(e) => savedConfigurations.onNameChange(e.target.value)}
+                  placeholder="e.g. Team gateway"
+                  data-testid="chat-config-name-input"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Give each OpenAI-compatible endpoint or key its own name to keep several configurations.
+                </p>
+              </div>
+            </>
           )}
           <div className={cn("space-y-2", managedCloudInfo && "!mt-2")}>
             <Label>Provider</Label>

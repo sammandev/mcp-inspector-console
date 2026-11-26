@@ -47,6 +47,9 @@ import { ConfigurationDialog } from "./chat/ConfigurationDialog";
 import { useOptionalAccount } from "../../../../src/accounts/AccountProvider.js";
 import { accountResourceId } from "../../../../src/accounts/api.js";
 import { AccountChatStorageProvider } from "../../../../src/accounts/storage.js";
+import { ModelPicker } from "../../../../src/accounts/ModelPicker.js";
+import { providerLabel } from "../../../../src/accounts/useAccountConfig.js";
+import type { SavedConfigurations } from "./chat/ConfigurationDialog";
 import { ConfigureEmptyState } from "./chat/ConfigureEmptyState";
 import { MessageList } from "./chat/MessageList";
 import { ChatScrollToBottomButton } from "./chat/ChatScrollToBottomButton";
@@ -313,6 +316,7 @@ export function ChatTab({
   );
 
   // Use custom hooks for configuration, chat messages and mcp prompts handling
+  const chatConfig = useConfig({ mcpServerUrl: connection.url ?? "" });
   const {
     llmConfig: localLlmConfig,
     authConfig: userAuthConfig,
@@ -328,7 +332,26 @@ export function ChatTab({
     setTempBaseUrl,
     saveLLMConfig,
     clearConfig,
-  } = useConfig({ mcpServerUrl: connection.url ?? "" });
+  } = chatConfig;
+  const accountProviders = "providers" in chatConfig ? chatConfig : null;
+  const savedConfigurations: SavedConfigurations | undefined = accountProviders ? {
+    options: accountProviders.providers.map(setting => ({ id: setting.id, label: `${providerLabel(setting)} · ${setting.model}` })),
+    selectedId: accountProviders.editingProviderId,
+    onSelect: accountProviders.selectEditingProvider,
+    name: accountProviders.tempName,
+    onNameChange: accountProviders.setTempName,
+  } : undefined;
+  const modelPicker = accountProviders && account?.client ? (
+    <ModelPicker
+      client={account.client}
+      providers={accountProviders.providers}
+      activeProviderId={accountProviders.activeProviderId}
+      onSelectModel={accountProviders.selectModel}
+      reasoningEffort={accountProviders.reasoningEffort}
+      onReasoningEffortChange={accountProviders.setReasoningEffort}
+      onManageProviders={() => setConfigDialogOpen(true)}
+    />
+  ) : undefined;
 
   const { setForceClientSide, effectiveClientSide, llmConfig, isManaged } =
     useHostedChatMode({
@@ -1549,6 +1572,7 @@ export function ChatTab({
             onSaveManagedCloud={
               managedCloudInfo ? handleSaveManagedCloud : undefined
             }
+            savedConfigurations={savedConfigurations}
           />
         </div>
 
@@ -1604,6 +1628,7 @@ export function ChatTab({
           skills={skills}
           skillSelection={skillSelection}
           systemPromptProvider={effectiveSystemPromptProvider}
+          modelPicker={modelPicker}
         />
         {reconnectBannerNode}
       </div>
@@ -1639,6 +1664,7 @@ export function ChatTab({
         onSaveManagedCloud={
           managedCloudInfo ? handleSaveManagedCloud : undefined
         }
+        savedConfigurations={savedConfigurations}
         onCopyChat={handleCopyChat}
         onExportChat={handleExportChat}
         clearButtonLabel={clearButtonLabel}
@@ -1762,6 +1788,7 @@ export function ChatTab({
             skills={skills}
             skillSelection={skillSelection}
             systemPromptProvider={effectiveSystemPromptProvider}
+            modelPicker={modelPicker}
           />
         </div>
       )}

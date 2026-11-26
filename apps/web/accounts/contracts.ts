@@ -1,7 +1,10 @@
 import { z } from "zod";
 
 export const providerNames = ["openai", "openai-compatible", "anthropic", "google", "openrouter", "ollama"] as const;
+export const reasoningEfforts = ["none", "minimal", "low", "medium", "high", "xhigh"] as const;
+export type ReasoningEffort = typeof reasoningEfforts[number];
 export const providerInput = z.object({
+  id: z.string().regex(/^[a-f0-9]{64}$/).optional(), name: z.string().trim().max(80).optional(),
   provider: z.enum(providerNames), model: z.string().trim().min(1).max(256),
   baseUrl: z.string().max(2048).default(""), apiKey: z.string().max(8192).optional(),
   removeKey: z.boolean().optional(), temperature: z.number().min(0).max(2).optional(),

@@ -75,6 +75,8 @@ export interface LLMConfig {
   temperature?: number;
   baseUrl?: string;
   credentials?: RequestCredentials;
+  /** Extra request headers for the provider endpoint (e.g. the account relay's reasoning effort). */
+  extraHeaders?: Record<string, string>;
 }
 
 export interface AuthConfig {

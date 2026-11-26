@@ -1,3 +1,4 @@
+// Modified for the combined Inspector: optional saved-provider model picker replaces the badge.
 import { Button } from "@/client/components/ui/button";
 import {
   Tooltip,
@@ -81,6 +82,8 @@ interface ChatInputAreaProps {
   systemPromptProvider?: ChatSystemPromptProvider;
   skills?: Skill[];
   skillSelection?: ChatSkillSelection;
+  /** Replaces the model badge (Inspector account mode: saved-provider model picker). */
+  modelPicker?: React.ReactNode;
 }
 
 export function ChatInputArea({
@@ -123,6 +126,7 @@ export function ChatInputArea({
   systemPromptProvider,
   skills = [],
   skillSelection,
+  modelPicker,
 }: ChatInputAreaProps) {
   const isFullscreen = variant === "fullscreen";
   const hasSkillSelection =
@@ -134,7 +138,7 @@ export function ChatInputArea({
     inputValue.trim() || promptResults.length > 0 || attachments.length > 0;
   const hasPendingElicitation = (pendingElicitationRequests?.length ?? 0) > 0;
 
-  const modelBadge =
+  const modelBadge = modelPicker && llmConfig ? modelPicker :
     llmConfig && (!hideModelBadge || freeTierInfo || managedCloudInfo) ? (
       <Tooltip>
         <TooltipTrigger
