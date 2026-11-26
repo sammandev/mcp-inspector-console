@@ -13,8 +13,9 @@ const bash = process.env.DEPLOY_TEST_BASH ?? (process.platform === 'win32'
       `${process.env.LOCALAPPDATA}/Programs/Git/bin/bash.exe`,
     ].find(existsSync)
   : 'bash');
+const validKey = Buffer.alloc(32, 7).toString('base64');
 const defaultEnvironment = 'DATABASE_URL=postgresql://example\nPGPASSWORD=example\n'
-  + 'MCP_INSPECTOR_ENCRYPTION_KEY=example\nMCP_INSPECTOR_PUBLIC_ORIGINS=https://10.0.0.1:7000\n';
+  + `MCP_INSPECTOR_ENCRYPTION_KEY='${validKey}'\nMCP_INSPECTOR_PUBLIC_ORIGINS=https://10.0.0.1:7000\n`;
 
 function shellPath(value) {
   return value.replaceAll('\\', '/').replace(/^([A-Za-z]):/, (_, drive) => `/${drive.toLowerCase()}`);
@@ -234,6 +235,7 @@ for (const [label, options, message] of [
   ['a missing public origin', { envFile: 'DATABASE_URL=postgresql://example\n' }, /MCP_INSPECTOR_PUBLIC_ORIGINS/],
   ['an HTTP-only public origin', { envFile: 'MCP_INSPECTOR_PUBLIC_ORIGINS=http://10.0.0.1:7000\n' }, /MCP_INSPECTOR_PUBLIC_ORIGINS/],
   ['a placeholder runtime secret', { envFile: `${defaultEnvironment}PGPASSWORD='replace_me'\n` }, /placeholder/],
+  ['a non-32-byte encryption key', { envFile: `${defaultEnvironment}MCP_INSPECTOR_ENCRYPTION_KEY='pega#1234'\n` }, /32 bytes/],
 ]) {
   test(`${label} is refused before Docker changes anything`, context => {
     const result = runDeployment(context, 'first', [], options);
@@ -243,6 +245,14 @@ for (const [label, options, message] of [
     assert.doesNotMatch(result.commands, /docker build|up -d|migrate|nginx/);
   });
 }
+
+test('the shipped .env template comments do not trip the placeholder check once values are set', context => {
+  const template = readFileSync(new URL('../.env.example', import.meta.url), 'utf8')
+    .replace("PGPASSWORD='replace_me'", "PGPASSWORD='example'")
+    .replace("MCP_INSPECTOR_ENCRYPTION_KEY='replace_me'", `MCP_INSPECTOR_ENCRYPTION_KEY='${validKey}'`);
+  const result = runDeployment(context, 'first', [], { envFile: template });
+  assert.equal(result.status, 0, result.stderr);
+});
 
 test('a group-readable but not world-readable TLS key is accepted', context => {
   const result = runDeployment(context, 'healthy', ['deploy', 'test-release'], { keyMode: '640' });

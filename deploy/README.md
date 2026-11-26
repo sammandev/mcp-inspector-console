@@ -88,7 +88,10 @@ openssl rand -base64 32      # value for MCP_INSPECTOR_ENCRYPTION_KEY
 editor .env                  # replace every replace_me value privately
 ```
 
-- `.env` must have mode `600` and must not contain `replace_me`.
+- `.env` must have mode `600`, and no uncommented line may contain `replace_me`.
+- `MCP_INSPECTOR_ENCRYPTION_KEY` must be the output of `openssl rand -base64 32`
+  (32 bytes). The script refuses anything else, because an invalid key
+  silently disables accounts and sign-in.
 - `MCP_INSPECTOR_PUBLIC_ORIGINS` must list the exact HTTPS origin that
   browsers use. Add an entry for every hostname that also points at the
   server.

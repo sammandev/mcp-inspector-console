@@ -162,15 +162,21 @@ case "$command_name" in
     *) fail "$USAGE" ;;
 esac
 
-for dependency in docker curl flock stat ss; do
+for dependency in docker curl flock stat ss base64; do
     command -v "$dependency" >/dev/null || fail "Required command missing: $dependency"
 done
 docker compose version >/dev/null
 [[ -f .env ]] || fail 'Create deploy/.env from .env.example on Ubuntu first.'
 [[ "$(stat -c '%a' .env)" == 600 ]] || fail 'Protect deploy/.env with chmod 600.'
-! grep -q replace_me .env || fail 'Replace the placeholder values in deploy/.env privately on Ubuntu.'
+! grep -Eq '^[^#]*replace_me' .env || fail 'Replace the placeholder values in deploy/.env privately on Ubuntu.'
 grep -Eq '^MCP_INSPECTOR_PUBLIC_ORIGINS=.*https://' .env \
     || fail 'Set MCP_INSPECTOR_PUBLIC_ORIGINS in deploy/.env to the HTTPS edge origin.'
+encryption_key=$(sed -n 's/^MCP_INSPECTOR_ENCRYPTION_KEY=//p' .env | tail -n 1)
+encryption_key=${encryption_key#[\"\']}
+encryption_key=${encryption_key%[\"\']}
+[[ "$(printf '%s' "$encryption_key" | base64 -d 2>/dev/null | wc -c)" -eq 32 ]] \
+    || fail 'MCP_INSPECTOR_ENCRYPTION_KEY in deploy/.env must be 32 bytes encoded as base64 (openssl rand -base64 32).'
+unset encryption_key
 [[ -f tls/server.crt && -f tls/server.key ]] \
     || fail 'Install the edge certificate as deploy/tls/server.crt and deploy/tls/server.key first.'
 (( (8#$(stat -c '%a' tls/server.key) & 8#007) == 0 )) \
@@ -215,7 +221,7 @@ if [[ "$command_name" == deploy ]]; then
     else (
         if [[ -f .env.proxy ]]; then
             [[ "$(stat -c '%a' .env.proxy)" == 600 ]] || fail 'Protect deploy/.env.proxy with chmod 600.'
-            ! grep -q replace_me .env.proxy || fail 'Replace the proxy placeholder privately in deploy/.env.proxy.'
+            ! grep -Eq '^[^#]*replace_me' .env.proxy || fail 'Replace the proxy placeholder privately in deploy/.env.proxy.'
             # A private profile replaces inherited proxy settings only for this build.
             unset HTTP_PROXY HTTPS_PROXY NO_PROXY http_proxy https_proxy no_proxy
             set -a
