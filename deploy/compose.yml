@@ -9,6 +9,8 @@ x-app: &app
   environment:
     NODE_ENV: production
     NODE_OPTIONS: --max-old-space-size=512
+    # fetch() honors HTTP_PROXY/HTTPS_PROXY/NO_PROXY from .env when set there.
+    NODE_USE_ENV_PROXY: "1"
   user: "10001:10001"
   read_only: true
   tmpfs:

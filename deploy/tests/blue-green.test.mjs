@@ -229,6 +229,7 @@ for (const [label, options, message] of [
   ['a non-URL public origin', { envFile: defaultEnvironment.replace('http://10.0.0.1:7000', '10.0.0.1:7000') }, /MCP_INSPECTOR_PUBLIC_ORIGINS/],
   ['a placeholder runtime secret', { envFile: `${defaultEnvironment}PGPASSWORD='replace_me'\n` }, /placeholder/],
   ['a non-32-byte encryption key', { envFile: `${defaultEnvironment}MCP_INSPECTOR_ENCRYPTION_KEY='pega#1234'\n` }, /32 bytes/],
+  ['a runtime proxy without loopback NO_PROXY', { envFile: `${defaultEnvironment}HTTPS_PROXY=http://proxy.example:8080\nNO_PROXY=10.176.2.139\n` }, /NO_PROXY/],
 ]) {
   test(`${label} is refused before Docker changes anything`, context => {
     const result = runDeployment(context, 'first', [], options);
@@ -244,6 +245,13 @@ test('the shipped .env template comments do not trip the placeholder check once 
     .replace("PGPASSWORD='replace_me'", "PGPASSWORD='example'")
     .replace("MCP_INSPECTOR_ENCRYPTION_KEY='replace_me'", `MCP_INSPECTOR_ENCRYPTION_KEY='${validKey}'`);
   const result = runDeployment(context, 'first', [], { envFile: template });
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test('a runtime proxy that bypasses loopback is accepted', context => {
+  const result = runDeployment(context, 'first', [], {
+    envFile: `${defaultEnvironment}HTTPS_PROXY=http://proxy.example:8080\nNO_PROXY=127.0.0.1,localhost,::1,10.176.2.139\n`,
+  });
   assert.equal(result.status, 0, result.stderr);
 });
 

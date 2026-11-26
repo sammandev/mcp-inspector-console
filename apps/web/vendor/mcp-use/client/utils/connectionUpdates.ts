@@ -1,4 +1,4 @@
-// Modified for the combined Inspector: persist the extra transport and diagnostics settings.
+// Modified for the combined Inspector: persist the extra transport and diagnostics settings, and rebase this host's Inspector proxy address saved under another scheme.
 import { inspectorApi } from "@/client/utils/basePath";
 import { accountConnections } from "../../../../src/accounts/storage.js";
 import { isLocalhostServerUrl } from "@/client/utils/servers";
@@ -364,8 +364,10 @@ function rebaseStoredInspectorProxyUrl(value: string): string {
   if (typeof window === "undefined") return value;
   try {
     const parsed = new URL(value, window.location.origin);
+    // One host:port serves one scheme, so a config saved under the other
+    // scheme (e.g. before an HTTPS-to-HTTP switch) still means this proxy.
     if (
-      parsed.origin === window.location.origin &&
+      parsed.host === new URL(window.location.origin).host &&
       /\/inspector\/api\/proxy\/?$/.test(parsed.pathname)
     ) {
       return getDefaultInspectorProxyAddress();
@@ -380,9 +382,12 @@ export function toMcpServerConfig(
   config: EditableConnectionConfig
 ): McpServerConfig {
   const headers = getComparableHeaders(config);
-  const proxyAddress =
+  const rawProxyAddress =
     config.proxyConfig?.proxyAddress?.trim() ||
     getAutoProxyFallbackAddress(config.autoProxyFallback);
+  const proxyAddress = rawProxyAddress
+    ? rebaseStoredInspectorProxyUrl(rawProxyAddress)
+    : rawProxyAddress;
   const connectionMode = normalizeConnectionMode(
     config.connectionMode,
     config.connectionType,
@@ -416,9 +421,17 @@ export function toMcpServerConfig(
   }
 
   if (connectionMode === "auto") {
+    const fallback = config.autoProxyFallback;
     serverConfig.autoProxyFallback =
-      config.autoProxyFallback ??
-      (proxyAddress ? { enabled: true, proxyAddress } : false);
+      typeof fallback === "object" && fallback?.proxyAddress
+        ? {
+            ...fallback,
+            proxyAddress: rebaseStoredInspectorProxyUrl(
+              fallback.proxyAddress.trim()
+            ),
+          }
+        : (fallback ??
+          (proxyAddress ? { enabled: true, proxyAddress } : false));
   }
 
   return serverConfig;

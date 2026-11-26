@@ -40,7 +40,8 @@ export class ExternalAuthenticator {
       throw new AccountError(503, "Authentication service is unavailable or timed out");
     }
     if (response.status === 429) throw new AccountError(429, "Too many attempts. Please wait before trying again.");
-    if (response.status === 400 || response.status === 401 || response.status === 403) {
+    // token2 answers 404 "User does not exist" for unknown usernames.
+    if (response.status === 400 || response.status === 401 || response.status === 403 || response.status === 404) {
       throw new AccountError(401, "Credentials or verification code were rejected");
     }
     if (response.status !== 200 && response.status !== 201) {
@@ -54,12 +55,28 @@ export class ExternalAuthenticator {
     }
   }
 
+  private async validAccess(access: string, refresh: string): Promise<string> {
+    try {
+      await this.request("/api/user/token/verify/", { token: access });
+      return access;
+    } catch (error) {
+      if (!(error instanceof AccountError) || error.status !== 401) throw error;
+    }
+    const refreshed = await this.request("/api/user/token/refresh/", { refresh });
+    if (typeof refreshed.access !== "string" || !refreshed.access) {
+      throw new AccountError(502, "Authentication service returned incomplete tokens");
+    }
+    return refreshed.access;
+  }
+
   private async identity(tokens: Record<string, unknown>): Promise<ExternalIdentity> {
     if (typeof tokens.access !== "string" || !tokens.access ||
         typeof tokens.refresh !== "string" || !tokens.refresh) {
       throw new AccountError(502, "Authentication service returned incomplete tokens");
     }
-    const user = await this.request("/api/user/account/info", undefined, tokens.access);
+    const access = await this.validAccess(tokens.access, tokens.refresh);
+    // Django redirects the slashless path, and redirects are refused.
+    const user = await this.request("/api/user/account/info/", undefined, access);
     if (user.is_active !== true || typeof user.username !== "string" || !user.username ||
         (typeof user.id !== "number" && typeof user.id !== "string")) {
       throw new AccountError(401, "No active external account was found");

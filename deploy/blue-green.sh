@@ -176,6 +176,14 @@ encryption_key=${encryption_key%[\"\']}
 [[ "$(printf '%s' "$encryption_key" | base64 -d 2>/dev/null | wc -c)" -eq 32 ]] \
     || fail 'MCP_INSPECTOR_ENCRYPTION_KEY in deploy/.env must be 32 bytes encoded as base64 (openssl rand -base64 32).'
 unset encryption_key
+# The app runs with NODE_USE_ENV_PROXY, so loopback calls (PegaAI, local relay)
+# would go to the proxy unless NO_PROXY exempts them.
+if grep -Eq '^(HTTP|HTTPS)_PROXY=.+' .env; then
+    no_proxy_line=$(sed -n 's/^NO_PROXY=//p' .env | tail -n 1)
+    [[ ",${no_proxy_line//[\"\' ]/}," == *,127.0.0.1,* && ",${no_proxy_line//[\"\' ]/}," == *,localhost,* ]] \
+        || fail 'deploy/.env sets HTTP(S)_PROXY, so NO_PROXY must include 127.0.0.1,localhost and every internal host the app calls.'
+    unset no_proxy_line
+fi
 mkdir -p state/upstreams state/assets
 chmod 755 state/upstreams state/assets
 exec 9>state/deploy.lock

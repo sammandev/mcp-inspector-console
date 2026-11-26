@@ -42,25 +42,68 @@ describe("external authentication", () => {
     });
   });
 
-  it("uses token2 and validates the active account after a 201 token response", async () => {
+  it("uses token2, verifies the access token, then reads the account at the slash-terminated path", async () => {
+    const calls: string[] = [];
     const auth = new ExternalAuthenticator(new URL("https://auth.example"), async (url, init) => {
+      calls.push(String(url));
       if (String(url).endsWith("/token2/")) {
         expect(JSON.parse(String(init?.body))).toEqual({ username: "fixture", password: "password" });
         return Response.json({ access: "fixture-access", refresh: "fixture-refresh" }, { status: 201 });
       }
-      expect(String(url)).toBe("https://auth.example/api/user/account/info");
+      if (String(url).endsWith("/token/verify/")) {
+        expect(JSON.parse(String(init?.body))).toEqual({ token: "fixture-access" });
+        return Response.json({});
+      }
       expect(new Headers(init?.headers).get("authorization")).toBe("Bearer fixture-access");
       return Response.json({ id: 47, username: "fixture", email: "fixture@example.test", is_active: true });
     });
     expect(await auth.login("fixture", "password")).toMatchObject({
       otpRequired: false, identity: "47", username: "fixture",
     });
+    expect(calls).toEqual([
+      "https://auth.example/api/user/token2/",
+      "https://auth.example/api/user/token/verify/",
+      "https://auth.example/api/user/account/info/",
+    ]);
+  });
+
+  it("refreshes a rejected access token before reading the account", async () => {
+    const calls: string[] = [];
+    const auth = new ExternalAuthenticator(new URL("https://auth.example"), async (url, init) => {
+      const path = new URL(String(url)).pathname;
+      calls.push(path);
+      if (path === "/api/user/token2/") return Response.json({ access: "stale", refresh: "fixture-refresh" });
+      if (path === "/api/user/token/verify/") {
+        return Response.json({ detail: "Token is invalid or expired", code: "token_not_valid" }, { status: 401 });
+      }
+      if (path === "/api/user/token/refresh/") {
+        expect(JSON.parse(String(init?.body))).toEqual({ refresh: "fixture-refresh" });
+        return Response.json({ access: "fresh" });
+      }
+      expect(new Headers(init?.headers).get("authorization")).toBe("Bearer fresh");
+      return Response.json({ id: 47, username: "fixture", is_active: true });
+    });
+    expect(await auth.login("fixture", "password")).toMatchObject({ identity: "47" });
+    expect(calls).toEqual(["/api/user/token2/", "/api/user/token/verify/", "/api/user/token/refresh/", "/api/user/account/info/"]);
+
+    const expired = new ExternalAuthenticator(new URL("https://auth.example"), async (url) =>
+      String(url).endsWith("/token2/")
+        ? Response.json({ access: "stale", refresh: "stale" })
+        : Response.json({ code: "token_not_valid" }, { status: 401 }));
+    await expect(expired.login("fixture", "password")).rejects.toMatchObject({ status: 401 });
+  });
+
+  it("treats an unknown external user (404) as rejected credentials, not an outage", async () => {
+    const auth = new ExternalAuthenticator(new URL("https://auth.example"), async () =>
+      Response.json({ error: "User does not exist" }, { status: 404 }));
+    await expect(auth.login("nobody", "password")).rejects.toMatchObject({ status: 401 });
   });
 
   it("rejects inactive accounts and incomplete token responses", async () => {
     const inactive = new ExternalAuthenticator(new URL("https://auth.example"), async (url) =>
       String(url).endsWith("/token2/")
         ? Response.json({ access: "fixture-access", refresh: "fixture-refresh" })
+        : String(url).endsWith("/verify/") ? Response.json({})
         : Response.json({ id: 47, username: "fixture", is_active: false }));
     await expect(inactive.login("fixture", "password")).rejects.toMatchObject({ status: 401 });
     const incomplete = new ExternalAuthenticator(new URL("https://auth.example"), async () => Response.json({ access: "x" }));

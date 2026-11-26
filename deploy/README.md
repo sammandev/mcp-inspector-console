@@ -109,6 +109,23 @@ editor .env.proxy
 Proxy values reach the build only as BuildKit secrets. They never appear in
 image layers, build arguments or the runtime containers.
 
+## Runtime network access (optional)
+
+The Inspector server proxies MCP requests that browsers cannot send directly
+(CORS). If the host reaches the internet only through the corporate proxy,
+public MCP servers fail with `Version negotiation failed ... HTTP 500` until
+the runtime has a proxy too. Add these lines to `deploy/.env` (uppercase
+names) and redeploy:
+
+```bash
+HTTP_PROXY=http://proxy.example:8080
+HTTPS_PROXY=http://proxy.example:8080
+NO_PROXY=127.0.0.1,localhost,::1,10.176.2.139,172.18.220.56
+```
+
+`NO_PROXY` must list every internal host the app calls: approved MCP targets,
+the external auth service and PegaAI.
+
 ## Deploy
 
 ```bash
