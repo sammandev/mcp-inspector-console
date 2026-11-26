@@ -126,6 +126,14 @@ describe("Inspector account API", () => {
       headers: { Origin: "https://attacker.example" },
     })))!.status).toBe(403);
   });
+  it("accepts plain-HTTP same-origin reads identified only by Referer", async () => {
+    const service = fixture();
+    const me = (referer?: string) => service.handle(new Request("http://10.176.2.139:7000/mcp/inspector/api/account/me",
+      { headers: referer ? { Referer: referer } : {} }));
+    expect((await me("http://10.176.2.139:7000/mcp/inspector/sign-in"))!.status).toBe(200);
+    expect((await me("http://attacker.example/page"))!.status).toBe(403);
+    expect((await me())!.status).toBe(403);
+  });
   it("blocks anonymous account data and rejects a stale session generation", async () => {
     const service = fixture();
     expect((await service.handle(request("providers")))!.status).toBe(401);

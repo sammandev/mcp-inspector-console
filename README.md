@@ -201,8 +201,8 @@ pnpm --filter @mcp-inspector-console/web exec vite preview --host 127.0.0.1
 
 Plain Vite preview is for local verification. The shared Ubuntu deployment
 runs the same preview server inside hardened blue-green containers behind a
-TLS Nginx edge on port `7000`; see [deploy/README.md](deploy/README.md). Setting
-`MCP_INSPECTOR_PUBLIC_ORIGINS` (comma-separated HTTPS origins) lets the
+plain-HTTP Nginx edge on port `7000`; see [deploy/README.md](deploy/README.md). Setting
+`MCP_INSPECTOR_PUBLIC_ORIGINS` (comma-separated origins) lets the
 proxied browser origin through the loopback guard and disables the stdio
 relay, because LAN users must not start processes on the server.
 

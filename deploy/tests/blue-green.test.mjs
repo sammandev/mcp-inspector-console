@@ -15,14 +15,14 @@ const bash = process.env.DEPLOY_TEST_BASH ?? (process.platform === 'win32'
   : 'bash');
 const validKey = Buffer.alloc(32, 7).toString('base64');
 const defaultEnvironment = 'DATABASE_URL=postgresql://example\nPGPASSWORD=example\n'
-  + `MCP_INSPECTOR_ENCRYPTION_KEY='${validKey}'\nMCP_INSPECTOR_PUBLIC_ORIGINS=https://10.0.0.1:7000\n`;
+  + `MCP_INSPECTOR_ENCRYPTION_KEY='${validKey}'\nMCP_INSPECTOR_PUBLIC_ORIGINS=http://10.0.0.1:7000\n`;
 
 function shellPath(value) {
   return value.replaceAll('\\', '/').replace(/^([A-Za-z]):/, (_, drive) => `/${drive.toLowerCase()}`);
 }
 
 function runDeployment(context, scenario, args = ['deploy', 'test-release'], options = {}) {
-  const { buildEnvironment = {}, proxyFile, envFile = defaultEnvironment, tls = true } = options;
+  const { buildEnvironment = {}, proxyFile, envFile = defaultEnvironment } = options;
   assert.ok(bash, 'Bash is required for rollout tests');
   const root = mkdtempSync(path.join(tmpdir(), 'mcp-inspector-rollout-'));
   context.after(() => rmSync(root, { recursive: true, force: true }));
@@ -36,11 +36,6 @@ function runDeployment(context, scenario, args = ['deploy', 'test-release'], opt
     writeFileSync(path.join(directory, 'state', 'upstreams', 'active.conf'), 'server 127.0.0.1:27001;\n');
   }
   writeFileSync(path.join(directory, '.env'), envFile);
-  if (tls) {
-    mkdirSync(path.join(directory, 'tls'));
-    writeFileSync(path.join(directory, 'tls', 'server.crt'), 'certificate');
-    writeFileSync(path.join(directory, 'tls', 'server.key'), 'key');
-  }
   if (proxyFile) {
     writeFileSync(path.join(directory, '.env.proxy'), proxyFile.content);
   }
@@ -118,7 +113,7 @@ if [[ -n "$headers" ]]; then printf 'HTTP/1.1 302 Found\\r\\nX-Release-Upstream:
   for (const [name, content] of Object.entries({
     docker,
     curl,
-    stat: '#!/usr/bin/env bash\ncase "${@: -1}" in *.env.proxy) printf "%s\\n" "$MOCK_PROXY_MODE" ;; *server.key) printf "%s\\n" "$MOCK_KEY_MODE" ;; *) printf "600\\n" ;; esac\n',
+    stat: '#!/usr/bin/env bash\ncase "${@: -1}" in *.env.proxy) printf "%s\\n" "$MOCK_PROXY_MODE" ;; *) printf "600\\n" ;; esac\n',
     ss: '#!/usr/bin/env bash\nexit 0\n',
     flock: '#!/usr/bin/env bash\nexit 0\n',
     sleep: '#!/usr/bin/env bash\nexit 0\n',
@@ -142,7 +137,6 @@ if [[ -n "$headers" ]]; then printf 'HTTP/1.1 302 Found\\r\\nX-Release-Upstream:
   environment.MOCK_BUILD_ENV = shellPath(buildProxy);
   environment.MOCK_RUNTIME_ENV = shellPath(runtimeEnvironment);
   environment.MOCK_PROXY_MODE = proxyFile?.mode ?? '600';
-  environment.MOCK_KEY_MODE = options.keyMode ?? '600';
   const startup = path.join(root, 'mock-env.sh');
   writeFileSync(startup, 'export PATH="$MOCK_BIN:$PATH"\n');
   environment.BASH_ENV = shellPath(startup);
@@ -192,7 +186,8 @@ test('a healthy release migrates, switches to green and retains blue and both as
   assert.equal(result.active, green);
   assert.match(result.commands, /run --rm --no-deps --entrypoint node app-green accounts\/migrate\.mjs[\s\S]*up -d --no-deps --force-recreate app-green/);
   assert.match(result.commands, /exec mcp-inspector-edge nginx -t[\s\S]*nginx -s reload/);
-  assert.match(result.commands, /curl [^\n]*--insecure[^\n]*https:\/\/127\.0\.0\.1:7000\//);
+  assert.match(result.commands, /curl [^\n]*http:\/\/127\.0\.0\.1:7000\//);
+  assert.doesNotMatch(result.commands, /--insecure|https:\/\/127/);
   assert.doesNotMatch(result.commands, /docker stop|docker image rm|prune|up .*edge/);
   assert.equal(result.previousAsset, 'old release');
   assert.equal(result.candidateAsset, true);
@@ -230,10 +225,8 @@ test('first deployment migrates and tests edge config before publishing blue', c
 });
 
 for (const [label, options, message] of [
-  ['missing TLS files', { tls: false }, /deploy\/tls\/server\.crt/],
-  ['a world-readable TLS key', { keyMode: '644' }, /must not be accessible/],
   ['a missing public origin', { envFile: 'DATABASE_URL=postgresql://example\n' }, /MCP_INSPECTOR_PUBLIC_ORIGINS/],
-  ['an HTTP-only public origin', { envFile: 'MCP_INSPECTOR_PUBLIC_ORIGINS=http://10.0.0.1:7000\n' }, /MCP_INSPECTOR_PUBLIC_ORIGINS/],
+  ['a non-URL public origin', { envFile: defaultEnvironment.replace('http://10.0.0.1:7000', '10.0.0.1:7000') }, /MCP_INSPECTOR_PUBLIC_ORIGINS/],
   ['a placeholder runtime secret', { envFile: `${defaultEnvironment}PGPASSWORD='replace_me'\n` }, /placeholder/],
   ['a non-32-byte encryption key', { envFile: `${defaultEnvironment}MCP_INSPECTOR_ENCRYPTION_KEY='pega#1234'\n` }, /32 bytes/],
 ]) {
@@ -251,11 +244,6 @@ test('the shipped .env template comments do not trip the placeholder check once 
     .replace("PGPASSWORD='replace_me'", "PGPASSWORD='example'")
     .replace("MCP_INSPECTOR_ENCRYPTION_KEY='replace_me'", `MCP_INSPECTOR_ENCRYPTION_KEY='${validKey}'`);
   const result = runDeployment(context, 'first', [], { envFile: template });
-  assert.equal(result.status, 0, result.stderr);
-});
-
-test('a group-readable but not world-readable TLS key is accepted', context => {
-  const result = runDeployment(context, 'healthy', ['deploy', 'test-release'], { keyMode: '640' });
   assert.equal(result.status, 0, result.stderr);
 });
 
@@ -380,10 +368,13 @@ test('image builder mounts proxy secrets on every network step and keeps them ou
   assert.doesNotMatch(dockerfile.split(' AS runtime')[1], /NODE_USE_ENV_PROXY/);
 });
 
-test('edge terminates TLS on port 7000 and refuses the stdio relay', () => {
+test('edge serves plain HTTP on port 7000 without certificates and refuses the stdio relay', () => {
   const nginx = readFileSync(new URL('../nginx.conf', import.meta.url), 'utf8');
-  assert.match(nginx, /listen 7000 ssl;/);
-  assert.match(nginx, /proxy_set_header X-Forwarded-Proto https;/);
+  const compose = readFileSync(new URL('../compose.yml', import.meta.url), 'utf8');
+  assert.match(nginx, /listen 7000;/);
+  assert.doesNotMatch(nginx, /\bssl\b|ssl_certificate/);
+  assert.doesNotMatch(compose, /tls|no-check-certificate|https:/);
+  assert.match(nginx, /proxy_set_header X-Forwarded-Proto \$scheme;/);
   assert.match(nginx, /location \^~ \/mcp\/inspector\/api\/local \{\s*return 403;/);
   assert.match(nginx, /proxy_buffering off;/);
 });

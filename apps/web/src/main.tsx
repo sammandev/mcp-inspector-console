@@ -1,3 +1,7 @@
+import { installInsecureContextCrypto } from "./insecure-context-crypto.js";
+
+installInsecureContextCrypto();
+
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing application root");
 

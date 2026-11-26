@@ -85,11 +85,10 @@ verify_route() {
     port=$(slot_port "$color")
     expected_header="X-Release-Upstream: 127.0.0.1:$port"
     for ((attempt = 0; attempt < 20; attempt++)); do
-        # Loopback routing probe: the certificate names the LAN address, so
-        # verification is skipped here. "/" answers with a redirect.
-        if curl --silent --show-error --fail --insecure --noproxy 127.0.0.1 \
+        # Loopback routing probe. "/" answers with a redirect.
+        if curl --silent --show-error --fail --noproxy 127.0.0.1 \
             --connect-timeout 2 --max-time 5 --dump-header "$probe_headers" \
-            --output /dev/null "https://127.0.0.1:$EDGE_PORT/"; then
+            --output /dev/null "http://127.0.0.1:$EDGE_PORT/"; then
             while IFS= read -r header; do
                 header=${header%$'\r'}
                 if [[ "${header,,}" == "${expected_header,,}" ]]; then
@@ -169,18 +168,14 @@ docker compose version >/dev/null
 [[ -f .env ]] || fail 'Create deploy/.env from .env.example on Ubuntu first.'
 [[ "$(stat -c '%a' .env)" == 600 ]] || fail 'Protect deploy/.env with chmod 600.'
 ! grep -Eq '^[^#]*replace_me' .env || fail 'Replace the placeholder values in deploy/.env privately on Ubuntu.'
-grep -Eq '^MCP_INSPECTOR_PUBLIC_ORIGINS=.*https://' .env \
-    || fail 'Set MCP_INSPECTOR_PUBLIC_ORIGINS in deploy/.env to the HTTPS edge origin.'
+grep -Eq '^MCP_INSPECTOR_PUBLIC_ORIGINS=.*https?://' .env \
+    || fail 'Set MCP_INSPECTOR_PUBLIC_ORIGINS in deploy/.env to the edge origin, for example http://10.176.2.139:7000.'
 encryption_key=$(sed -n 's/^MCP_INSPECTOR_ENCRYPTION_KEY=//p' .env | tail -n 1)
 encryption_key=${encryption_key#[\"\']}
 encryption_key=${encryption_key%[\"\']}
 [[ "$(printf '%s' "$encryption_key" | base64 -d 2>/dev/null | wc -c)" -eq 32 ]] \
     || fail 'MCP_INSPECTOR_ENCRYPTION_KEY in deploy/.env must be 32 bytes encoded as base64 (openssl rand -base64 32).'
 unset encryption_key
-[[ -f tls/server.crt && -f tls/server.key ]] \
-    || fail 'Install the edge certificate as deploy/tls/server.crt and deploy/tls/server.key first.'
-(( (8#$(stat -c '%a' tls/server.key) & 8#007) == 0 )) \
-    || fail 'deploy/tls/server.key must not be accessible to other users.'
 mkdir -p state/upstreams state/assets
 chmod 755 state/upstreams state/assets
 exec 9>state/deploy.lock

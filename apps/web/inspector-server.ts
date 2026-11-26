@@ -11,6 +11,7 @@ import { readAccountConfig } from "./accounts/config.js";
 import { AccountStore } from "./accounts/store.js";
 import { AccountService, ACCOUNT_PATH } from "./accounts/api.js";
 import { relayProviderRequest } from "./accounts/provider-relay.js";
+import { isSameOriginBrowserRequest } from "./same-origin-request.js";
 
 const INSPECTOR_PATH = "/mcp/inspector";
 const LOOPBACK_ADDRESSES = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
@@ -71,11 +72,13 @@ export function remoteLocalRelayRequest(pathname: string, origin: InspectorReque
 }
 
 function isSameOriginApiRequest(request: IncomingMessage, origin: string): boolean {
-  const requestOrigin = request.headers.origin;
-  const fetchSite = request.headers["sec-fetch-site"];
-  if (fetchSite !== undefined && fetchSite !== "same-origin") return false;
-  if (requestOrigin !== undefined && requestOrigin !== origin) return false;
-  return requestOrigin === origin || fetchSite === "same-origin";
+  const header = (name: string) => {
+    const value = request.headers[name];
+    return Array.isArray(value) ? value[0] : value;
+  };
+  return isSameOriginBrowserRequest(origin, {
+    origin: header("origin"), fetchSite: header("sec-fetch-site"), referer: header("referer"),
+  });
 }
 
 async function boundedRequest(request: Request, maxBytes: number): Promise<Request | Response> {

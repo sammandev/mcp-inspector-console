@@ -4,6 +4,7 @@ import { AccountError, ExternalAuthenticator } from "./auth.js";
 import type { AccountConfig } from "./config.js";
 import { chatInput, providerInput, type AccountSession, type AccountUser, type SavedProvider } from "./contracts.js";
 import type { AccountStore } from "./store.js";
+import { isSameOriginBrowserRequest } from "../same-origin-request.js";
 
 export const ACCOUNT_PATH = "/mcp/inspector/api/account/";
 const SESSION_COOKIE = "inspector_session";
@@ -92,9 +93,10 @@ export class AccountService {
   async handle(request: Request): Promise<Response | undefined> {
     const url = new URL(request.url);
     if (!url.pathname.startsWith(ACCOUNT_PATH)) return;
-    if (request.headers.get("origin") !== url.origin && request.headers.get("sec-fetch-site") !== "same-origin" ||
-        request.headers.has("origin") && request.headers.get("origin") !== url.origin ||
-        request.headers.has("sec-fetch-site") && request.headers.get("sec-fetch-site") !== "same-origin") {
+    if (!isSameOriginBrowserRequest(url.origin, {
+      origin: request.headers.get("origin"), fetchSite: request.headers.get("sec-fetch-site"),
+      referer: request.headers.get("referer"),
+    })) {
       return Response.json({ error: "Cross-origin account requests are forbidden" }, { status: 403 });
     }
     try {

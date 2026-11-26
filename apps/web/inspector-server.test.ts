@@ -76,6 +76,30 @@ describe("shared deployment origins", () => {
   const incoming = (host: string, remoteAddress = "127.0.0.1", headers: IncomingHttpHeaders = {}) =>
     ({ socket: { remoteAddress }, headers: { host, ...headers } }) as unknown as IncomingMessage;
 
+  it("identifies same-origin API calls from Fetch Metadata, Origin, or a plain-HTTP Referer", async () => {
+    const { isSameOriginBrowserRequest } = await import("./same-origin-request.js");
+    const origin = "http://10.176.2.139:7000";
+
+    expect(isSameOriginBrowserRequest(origin, { fetchSite: "same-origin" })).toBe(true);
+    expect(isSameOriginBrowserRequest(origin, { origin })).toBe(true);
+    expect(isSameOriginBrowserRequest(origin, { referer: `${origin}/mcp/inspector?tab=tools` })).toBe(true);
+    expect(isSameOriginBrowserRequest(origin, {})).toBe(false);
+    expect(isSameOriginBrowserRequest(origin, { referer: "http://attacker.example/" })).toBe(false);
+    expect(isSameOriginBrowserRequest(origin, { referer: "not a url" })).toBe(false);
+    expect(isSameOriginBrowserRequest(origin, { origin: "null", referer: `${origin}/` })).toBe(false);
+    expect(isSameOriginBrowserRequest(origin, { fetchSite: "cross-site", referer: `${origin}/` })).toBe(false);
+    expect(isSameOriginBrowserRequest(origin, { origin: "http://attacker.example", fetchSite: "same-origin" })).toBe(false);
+  });
+
+  it("accepts a plain-HTTP public origin forwarded by the edge", async () => {
+    const { parsePublicOrigins, requestOrigin } = await import("./inspector-server.js");
+    const origins = parsePublicOrigins("http://10.176.2.139:7000");
+
+    expect(requestOrigin(incoming("10.176.2.139:7000", "127.0.0.1", { "x-forwarded-proto": "http" }), 27001, origins))
+      .toEqual({ origin: "http://10.176.2.139:7000", remote: true });
+    expect(requestOrigin(incoming("10.176.2.139:7000", "10.0.0.5"), 27001, origins)).toBeUndefined();
+  });
+
   it("accepts the configured public origin only from the loopback edge with its forwarded scheme", async () => {
     const { parsePublicOrigins, requestOrigin } = await import("./inspector-server.js");
     const origins = parsePublicOrigins(` ${publicOrigin}/ `);
