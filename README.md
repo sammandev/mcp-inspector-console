@@ -106,6 +106,22 @@ pnpm verify:phase-0
 http://127.0.0.1:4173/mcp/inspector?server=http%3A%2F%2Flocalhost%3A3000%2Fmcp
 ```
 
+mcp-use blocks private-network proxy targets by default. For an approved LAN MCP service, set `MCP_INSPECTOR_ALLOWED_TARGETS` to a comma-separated list of exact HTTP(S) endpoint URLs before starting the Inspector. Invalid URLs or URLs containing credentials stop startup. Unlisted targets keep the default mcp-use network policy. For example:
+
+```text
+MCP_INSPECTOR_ALLOWED_TARGETS=http://10.176.2.139:39064/mcp
+pnpm dev
+```
+
+The Chat page defaults to an OpenAI-compatible PegaAI provider through the same-origin Inspector route `/mcp/inspector/api/pegaai/v1`. Enter the user's own AICC key in the chat configuration dialog; the key remains in browser storage and is forwarded only to the configured PegaAI endpoint. The local server proxies to `http://10.176.2.139:4714` by default. Override that server-side origin when required before starting the Inspector:
+
+```text
+MCP_INSPECTOR_PEGA_AI_URL=http://10.176.2.139:4714
+pnpm dev
+```
+
+The PegaAI origin must be an HTTP(S) URL without a path or credentials. The existing model-status route is used to list running text-to-text LLMs and falls back to authenticated `/v1/models` discovery if status is unavailable. The LAN transport remains subject to the security and plaintext-network policy documented by the PegaAI tunnel.
+
 If startup reports `EADDRINUSE`, a process already owns the requested port.
 Stop an old development run with `Ctrl+C` in its original terminal, or choose
 unused ports for a separate run. In PowerShell:

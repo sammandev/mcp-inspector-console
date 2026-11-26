@@ -27,8 +27,15 @@ describe("vendored mcp-use UI provenance", () => {
     }
   });
 
-  it("contains no unrecorded files in the vendored client", async () => {
-    const recorded = new Set(manifest.files.map(({ path }) => path));
+  it("marks local-only vendored files and contains no unrecorded files", async () => {
+    const recorded = new Set([
+      ...manifest.files.map(({ path }) => path),
+      ...manifest.localFiles,
+    ]);
+    for (const path of manifest.localFiles) {
+      const content = await readFile(local(path), "utf8");
+      expect(content.startsWith(marker), path).toBe(true);
+    }
     const client = root("./vendor/mcp-use/client");
     const entries = await readdir(client, { recursive: true, withFileTypes: true });
     const files = entries.filter((entry) => entry.isFile())

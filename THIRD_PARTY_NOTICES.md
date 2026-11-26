@@ -6,7 +6,7 @@ This inventory is limited to material actually consumed or copied by the combine
 
 The project consumes `@mcp-use/inspector`, `@mcp-use/client`, and `@mcp-use/agent` as pinned published dependencies at the reference revision `8ff4b865e0e5712c66d5077e93392807daca9354`.
 
-At the same revision, the Inspector client source (`libraries/typescript/packages/inspector/src/client`) is copied into `apps/web/vendor/mcp-use/client` and its static assets (`libraries/typescript/packages/inspector/public`) into `apps/web/public/mcp-use`. The upstream LICENSE is kept at `apps/web/vendor/mcp-use/LICENSE`. `apps/web/vendor/mcp-use/manifest.json` records a SHA-256 checksum for every copied file and lists the files modified for the combined Inspector; each modified file carries a `Modified for the combined Inspector:` notice.
+At the same revision, the Inspector client source (`libraries/typescript/packages/inspector/src/client`) is copied into `apps/web/vendor/mcp-use/client` and its static assets (`libraries/typescript/packages/inspector/public`) into `apps/web/public/mcp-use`. The upstream LICENSE is kept at `apps/web/vendor/mcp-use/LICENSE`. `apps/web/vendor/mcp-use/manifest.json` records a SHA-256 checksum for every copied file, lists files modified for the combined Inspector, and identifies local-only fork additions. Modified and local-only files carry a `Modified for the combined Inspector:` notice.
 
 Copyright (c) mcp-use contributors. Package-license verification note: the verifier checks the repository pin, record classifications, and the fork checksums; distribution still requires confirming the pinned package archives' LICENSE files match this notice.
 

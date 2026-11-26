@@ -20,33 +20,10 @@ export type TabType =
   | "connection-settings";
 
 /**
- * Configuration injected by a host application when the inspector runs in
- * embedded / hosted mode (e.g. inside inspector.manufact.com or the Vibe IDE).
- *
- * ── Hosted-inspector chat flow ──────────────────────────────────────────────
- * The Chat tab uses a managed backend by default:
- *
- *   1. `InspectorProvider` (below) prefers the runtime MANUFACT_CHAT_URL,
- *      then VITE_MANUFACT_CHAT_URL, and finally the Manufact Cloud endpoint.
- *
- *   2. `LayoutContent` passes these down to `ChatTab` as props; `ChatTab`
- *      then passes `useClientSide={false}` to `useChatMessages`.
- *
- *   3. If the user already has their own API key in localStorage, `ChatTab`
- *      overrides this with `effectiveClientSide=true` (see forceClientSide
- *      logic there), bypassing the backend entirely.
- *
- *   4. The backend endpoint (`/api/v1/inspector/chat/stream`, cloud.mcp-use)
- *      requires an OAuth bearer token and meters the user's organization.
- *
- *   5. On a 429 response the frontend offers cloud OAuth sign-in or BYOK.
- *
- * ── Related files ────────────────────────────────────────────────────────────
- *  • cloud.mcp-use/src/routes/v1/inspector-chat.ts   — rate-limited endpoint
- *  • cloud.mcp-use/src/lib/mcp-chat-stream.ts        — shared OpenRouter streamer
- *  • inspector/src/client/components/ChatTab.tsx      — effectiveClientSide logic
- *  • inspector/src/client/auth/manufact-auth.ts       — cloud OAuth session
- *  • inspector/src/client/components/HostedUserMenu.tsx — avatar / authorization
+ * Configuration injected by an embedding host. Local Inspector chat uses the
+ * stored BYOK configuration unless a host explicitly provides a chat endpoint
+ * or managed LLM config. Runtime and build-time hosted URLs remain available for
+ * compatible embeddings, but there is no cloud endpoint fallback by default.
  */
 export interface EmbeddedConfig {
   backgroundColor?: string;
@@ -73,7 +50,7 @@ export interface EmbeddedConfig {
   chatCredentials?: RequestCredentials;
   /** Externally-managed LLM config passed to ChatTab (bypasses config UI) */
   managedLlmConfig?: LLMConfig;
-  /** Opt in to the Manufact free-tier sign-in / upgrade UI in the chat. */
+  /** Opt in to legacy hosted free-tier behavior. Disabled by default. */
   chatEnableFreeTierUpgrade?: boolean;
   // --- Chat UI customization ---
   /** Hide the "Chat" title in the header */
@@ -158,15 +135,6 @@ const InspectorContext = createContext<InspectorContextType | undefined>(
  * @returns A context provider element that supplies inspector state and mutator functions to its children
  */
 export function InspectorProvider({ children }: { children: ReactNode }) {
-  // Seed chat config so the hosted inspector (inspector.manufact.com, Railway
-  // deploy, etc.) uses the Manufact Claude API automatically. Read from:
-  //   1. `window.__MANUFACT_CHAT_URL__` — runtime, injected by the inspector
-  //      server from `MANUFACT_CHAT_URL` env var. This is the preferred path
-  //      so a single pre-built npm tarball can be configured at deploy time.
-  //   2. `VITE_MANUFACT_CHAT_URL` — build-time Vite env, for local dev builds
-  //      where you rebuild the client anyway.
-  //   3. Manufact Cloud — production fallback so hosted chat and sign-in are
-  //      available without additional configuration.
   const runtimeHostedChatUrl =
     typeof window !== "undefined"
       ? (window as Window & { __MANUFACT_CHAT_URL__?: string })
@@ -178,9 +146,7 @@ export function InspectorProvider({ children }: { children: ReactNode }) {
           ?.VITE_MANUFACT_CHAT_URL
       : undefined;
   const hostedChatUrl =
-    runtimeHostedChatUrl?.trim() ||
-    buildTimeHostedChatUrl?.trim() ||
-    "https://cloud.manufact.com/api/v1/inspector/chat/stream";
+    runtimeHostedChatUrl?.trim() || buildTimeHostedChatUrl?.trim() || undefined;
 
   const [state, setState] = useState<InspectorState>({
     selectedServerId: null,
@@ -196,7 +162,7 @@ export function InspectorProvider({ children }: { children: ReactNode }) {
     embeddedConfig: {
       chatApiUrl: hostedChatUrl,
       chatStreamProtocol: "data-stream",
-      chatEnableFreeTierUpgrade: true,
+      chatEnableFreeTierUpgrade: false,
     },
   });
 
@@ -254,7 +220,7 @@ export function InspectorProvider({ children }: { children: ReactNode }) {
           ...config,
           chatApiUrl: config.chatApiUrl?.trim() || hostedChatUrl,
           chatStreamProtocol: config.chatStreamProtocol ?? "data-stream",
-          chatEnableFreeTierUpgrade: config.chatEnableFreeTierUpgrade ?? true,
+          chatEnableFreeTierUpgrade: config.chatEnableFreeTierUpgrade ?? false,
         },
       }));
     },

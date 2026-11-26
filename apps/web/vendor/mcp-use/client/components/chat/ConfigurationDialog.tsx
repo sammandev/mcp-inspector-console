@@ -1,5 +1,6 @@
+// Modified for the combined Inspector: remove hosted onboarding and support PegaAI model discovery.
 import { Check, ChevronsUpDown, Eye, EyeOff, Key, Loader2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/client/components/ui/button";
 import { TabsSubtle, TabsSubtleItem } from "@/client/components/ui/tabs-subtle";
@@ -34,9 +35,6 @@ import {
 } from "@/client/components/ui/select";
 
 import { cn } from "@/client/lib/utils";
-import { useTheme } from "@/client/context/ThemeContext";
-import { MeshGradientCanvas } from "@/client/components/ui/MeshGradientCanvas";
-import { meshColorsForTheme } from "@/client/components/ui/mesh-gradient-colors";
 import {
   buildOllamaApiUrl,
   normalizeOllamaBaseUrl,
@@ -50,15 +48,16 @@ import {
 } from "./types";
 import {
   getProviderLabel,
-  ManufactWordmark,
   ProviderIcon,
   formatManagedModelName,
 } from "./providerMeta";
+import { fetchPegaAiModelOptions, isPegaAiBaseUrl } from "./pegaAi";
 import type { CloudModel } from "./useManagedCloudModel";
 
 interface ModelOption {
   id: string;
   displayName?: string;
+  aliases?: string[];
 }
 
 interface CachedModels {
@@ -146,11 +145,7 @@ interface ConfigurationDialogProps {
   buttonLabel?: string;
   /** Hosted inspector — use unified Configure Chat layout. */
   hostedInspector?: boolean;
-  /**
-   * When present, the dialog renders a mesh-gradient sign-in card above the
-   * provider/api-key form. Used in hosted inspector mode where the default
-   * LLM is provided server-side.
-   */
+  /** Legacy hosted compatibility input; local chat does not render sign-in UI. */
   freeTierInfo?: {
     onLoginClick: () => void;
   };
@@ -331,9 +326,6 @@ export function ConfigurationDialog({
   useManagedCloud = false,
   onSaveManagedCloud,
 }: ConfigurationDialogProps) {
-  const { resolvedTheme } = useTheme();
-  const meshColors = meshColorsForTheme(resolvedTheme);
-  const isDark = resolvedTheme === "dark";
   const [models, setModels] = useState<ModelOption[]>([]);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [modelError, setModelError] = useState<string | null>(null);
@@ -355,7 +347,7 @@ export function ConfigurationDialog({
 
   // Fetch models when API key / base URL is set and provider is selected
   useEffect(() => {
-    const needsApiKey = providerRequiresApiKey(tempProvider);
+    const needsApiKey = providerRequiresApiKey(tempProvider, tempBaseUrl);
     const needsBaseUrl = providerSupportsBaseUrl(tempProvider);
 
     if (
@@ -367,29 +359,33 @@ export function ConfigurationDialog({
     ) {
       setModels([]);
       setModelError(null);
+      setIsLoadingModels(false);
       return;
     }
 
+    let cancelled = false;
+    const mayUseCache = !tempApiKey.trim();
     const loadModels = async () => {
-      // Check cache first
-      const cachedModels = getCachedModels(modelsCacheKey);
-      if (cachedModels) {
-        setModels(cachedModels);
-        setModelError(null);
-        return;
+      if (cancelled) return;
+      if (mayUseCache) {
+        const cachedModels = getCachedModels(modelsCacheKey);
+        if (cachedModels) {
+          setModels(cachedModels);
+          setModelError(null);
+          setIsLoadingModels(false);
+          return;
+        }
       }
 
-      // Cache miss or expired, fetch from API
       setIsLoadingModels(true);
       setModelError(null);
 
       try {
         let fetchedModels: ModelOption[] = [];
         if (tempProvider === "openai-compatible") {
-          fetchedModels = await fetchOpenAICompatibleModels(
-            tempBaseUrl,
-            tempApiKey
-          );
+          fetchedModels = isPegaAiBaseUrl(tempBaseUrl)
+            ? await fetchPegaAiModelOptions(tempBaseUrl, tempApiKey)
+            : await fetchOpenAICompatibleModels(tempBaseUrl, tempApiKey);
         } else if (tempProvider === "openai") {
           fetchedModels = await fetchOpenAIModels(tempApiKey);
         } else if (tempProvider === "anthropic") {
@@ -402,45 +398,36 @@ export function ConfigurationDialog({
           fetchedModels = await fetchOllamaModels(tempBaseUrl, tempApiKey);
         }
 
-        // Cache the fetched models
-        setModelsCache(modelsCacheKey, fetchedModels);
+        if (cancelled) return;
+        if (mayUseCache) setModelsCache(modelsCacheKey, fetchedModels);
         setModels(fetchedModels);
       } catch (error) {
+        if (cancelled) return;
         setModelError(
           error instanceof Error
             ? error.message
-            : "Failed to fetch models. Please check your API key."
+            : "Failed to fetch models. Please check your API key.",
         );
         setModels([]);
       } finally {
-        setIsLoadingModels(false);
+        if (!cancelled) setIsLoadingModels(false);
       }
     };
 
-    // Debounce the API call
+    setIsLoadingModels(true);
     const timeoutId = setTimeout(loadModels, 500);
-    return () => clearTimeout(timeoutId);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
   }, [tempApiKey, tempBaseUrl, tempProvider, open, modelsCacheKey, isCloudTab]);
 
-  // Reset model only when BYOK provider changes while dialog is open — not on open.
-  const prevByokProviderRef = useRef<ProviderName | null>(null);
-  useEffect(() => {
-    if (!open || isCloudTab) {
-      if (!open) prevByokProviderRef.current = null;
-      return;
-    }
-    const prev = prevByokProviderRef.current;
-    if (prev !== null && prev !== tempProvider) {
-      onModelChange("");
-    }
-    prevByokProviderRef.current = tempProvider;
-  }, [tempProvider, open, onModelChange, isCloudTab]);
-
   const showBaseUrlField = providerSupportsBaseUrl(tempProvider);
-  const apiKeyOptional = !providerRequiresApiKey(tempProvider);
+  const apiKeyOptional = !providerRequiresApiKey(tempProvider, tempBaseUrl);
   const showModelSection =
     open &&
-    (!providerRequiresApiKey(tempProvider) || !!tempApiKey.trim()) &&
+    (!providerRequiresApiKey(tempProvider, tempBaseUrl) ||
+      !!tempApiKey.trim()) &&
     (!showBaseUrlField || !!tempBaseUrl.trim());
   const apiKeyLabel = apiKeyOptional ? "API Key (optional)" : "API Key";
   const apiKeyPlaceholder = apiKeyOptional
@@ -454,12 +441,14 @@ export function ConfigurationDialog({
       : getDefaultBaseUrl(tempProvider);
   const baseUrlHelp =
     tempProvider === "openai-compatible"
-      ? "Base URL of your OpenAI-compatible API. Local servers must have CORS enabled."
+      ? "Base URL of your OpenAI-compatible /v1 endpoint."
       : null;
   const apiKeyHelp =
     tempProvider === "ollama"
       ? "Optional for local Ollama. Stored locally and never sent to our servers."
-      : "Your API key is stored locally and never sent to our servers.";
+      : isPegaAiBaseUrl(tempBaseUrl)
+        ? "Your API key is stored in this browser and forwarded only to the configured PegaAI endpoint."
+        : "Your API key is stored locally and never sent to our servers.";
 
   const cloudModelsByProvider = managedCloudInfo
     ? managedCloudInfo.models.reduce<Record<string, CloudModel[]>>(
@@ -499,15 +488,22 @@ export function ConfigurationDialog({
     onSave();
   };
 
+  const selectedLocalModel = models.find(
+    (model) =>
+      model.id === tempModel || Boolean(model.aliases?.includes(tempModel)),
+  );
   const saveDisabled = isCloudTab
     ? Boolean(
         managedCloudInfo?.isLoading ||
         !managedCloudInfo?.selectedModelId ||
         managedCloudInfo?.models.length === 0
       )
-    : (providerRequiresApiKey(tempProvider) && !tempApiKey.trim()) ||
+    : (providerRequiresApiKey(tempProvider, tempBaseUrl) &&
+        !tempApiKey.trim()) ||
       (showBaseUrlField && !tempBaseUrl.trim()) ||
-      !tempModel.trim();
+      !tempModel.trim() ||
+      isLoadingModels ||
+      (models.length > 0 && !selectedLocalModel);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -518,51 +514,11 @@ export function ConfigurationDialog({
           </DialogTitle>
           <DialogDescription>
             {managedCloudInfo
-              ? "Pick a Manufact cloud model or bring your own API key."
-              : freeTierInfo
-                ? "Chat requires an LLM. You can chat for free if you have a Manufact account, or you can use your own API key (not sent to Manufact)."
-                : "Configure your LLM provider and API key to start chatting with the MCP server"}
+              ? "Pick a managed cloud model or configure your own provider."
+              : "Configure your LLM provider and API key to start chatting with the MCP server."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          {freeTierInfo && (
-            <button
-              type="button"
-              onClick={freeTierInfo.onLoginClick}
-              data-testid="chat-config-sign-in-card"
-              className="relative w-full cursor-pointer overflow-hidden rounded-2xl border-0 text-left transition-opacity hover:opacity-95 active:opacity-90"
-            >
-              <div
-                className="absolute inset-0 bg-[#edf2ff] dark:bg-background"
-                aria-hidden
-              />
-              <div className="absolute inset-0 dark:opacity-90">
-                <MeshGradientCanvas
-                  className="absolute inset-0 h-full w-full"
-                  colors={[...meshColors]}
-                  grainOverlay={isDark ? 0.1 : 0.15}
-                />
-              </div>
-              <div className="relative flex items-center justify-between gap-4 px-4 py-3.5">
-                <div className="text-sm font-medium text-foreground">
-                  <p>Chat for free with a</p>
-                  <p className="mt-1 flex items-center gap-1.5">
-                    <ManufactWordmark symbolSize={14} textClassName="text-sm" />
-                    account
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  render={<span aria-hidden="true" />}
-                  nativeButton={false}
-                  tabIndex={-1}
-                  className="pointer-events-none shrink-0"
-                >
-                  Sign in
-                </Button>
-              </div>
-            </button>
-          )}
           {managedCloudInfo && (
             <div className="flex justify-center">
               <TabsSubtle
@@ -571,7 +527,7 @@ export function ConfigurationDialog({
                 idPrefix={CHAT_CONFIG_TABS_ID}
                 className="w-fit"
               >
-                <TabsSubtleItem index={0} label="Manufact cloud" />
+                <TabsSubtleItem index={0} label="Managed cloud" />
                 <TabsSubtleItem index={1} label="API key" />
               </TabsSubtle>
             </div>
@@ -839,7 +795,15 @@ export function ConfigurationDialog({
                     <span>Loading models...</span>
                   </div>
                 ) : modelError ? (
-                  <div className="text-sm text-destructive">{modelError}</div>
+                  <div className="space-y-2">
+                    <div className="text-sm text-destructive">{modelError}</div>
+                    <Input
+                      value={tempModel}
+                      onChange={(e) => onModelChange(e.target.value)}
+                      placeholder="Enter model name manually"
+                      data-testid="chat-config-model-input"
+                    />
+                  </div>
                 ) : models.length > 0 ? (
                   <Popover
                     open={comboboxOpen}
@@ -857,10 +821,8 @@ export function ConfigurationDialog({
                         >
                           <span className="truncate">
                             {tempModel
-                              ? models.find((model) => model.id === tempModel)
-                                  ?.displayName ||
-                                models.find((model) => model.id === tempModel)
-                                  ?.id ||
+                              ? selectedLocalModel?.displayName ||
+                                selectedLocalModel?.id ||
                                 "Select a model..."
                               : "Select a model..."}
                           </span>
@@ -882,13 +844,15 @@ export function ConfigurationDialog({
                               <CommandItem
                                 key={model.id}
                                 value={model.id}
-                                keywords={model.displayName}
+                                keywords={[
+                                  model.displayName ?? "",
+                                  ...(model.aliases ?? []),
+                                ]}
                                 onSelect={(currentValue) => {
-                                  onModelChange(
-                                    currentValue === tempModel
-                                      ? ""
-                                      : currentValue
-                                  );
+                                  const isSelected =
+                                    currentValue === tempModel ||
+                                    Boolean(model.aliases?.includes(tempModel));
+                                  onModelChange(isSelected ? "" : currentValue);
                                   setComboboxOpen(false);
                                 }}
                               >
@@ -896,7 +860,8 @@ export function ConfigurationDialog({
                                 <Check
                                   className={cn(
                                     "ml-auto h-4 w-4",
-                                    tempModel === model.id
+                                    tempModel === model.id ||
+                                      model.aliases?.includes(tempModel)
                                       ? "opacity-100"
                                       : "opacity-0"
                                   )}

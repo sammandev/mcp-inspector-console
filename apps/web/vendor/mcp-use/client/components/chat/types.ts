@@ -1,4 +1,10 @@
+// Modified for the combined Inspector: default the local chat provider to PegaAI.
 import { DEFAULT_OLLAMA_BASE_URL, type ProviderName } from "@mcp-use/agent";
+import {
+  isPegaAiBaseUrl,
+  PEGA_AI_BASE_URL,
+  PEGA_AI_DEFAULT_MODEL,
+} from "./pegaAi";
 
 export interface MessageAttachment {
   type: "image" | "file";
@@ -104,7 +110,7 @@ export type StreamProtocol = "sse" | "data-stream";
 
 export const DEFAULT_MODELS: Record<ProviderName, string> = {
   openai: "gpt-5.6-terra",
-  "openai-compatible": "",
+  "openai-compatible": PEGA_AI_DEFAULT_MODEL,
   anthropic: "claude-haiku-4-5-20251001",
   google: "gemini-2.5-flash",
   openrouter: "meta-llama/llama-3.1-8b-instruct:free",
@@ -113,10 +119,16 @@ export const DEFAULT_MODELS: Record<ProviderName, string> = {
 
 const DEFAULT_BASE_URLS: Partial<Record<ProviderName, string>> = {
   ollama: DEFAULT_OLLAMA_BASE_URL,
+  "openai-compatible": PEGA_AI_BASE_URL,
 };
 
-export function providerRequiresApiKey(provider: ProviderName): boolean {
-  return provider !== "ollama" && provider !== "openai-compatible";
+export function providerRequiresApiKey(
+  provider: ProviderName,
+  baseUrl = "",
+): boolean {
+  if (provider === "ollama") return false;
+  if (provider === "openai-compatible") return isPegaAiBaseUrl(baseUrl);
+  return true;
 }
 
 export function providerSupportsBaseUrl(provider: ProviderName): boolean {

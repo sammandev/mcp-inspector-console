@@ -1,10 +1,12 @@
+// Modified for the combined Inspector: initialize unsaved chat configuration for PegaAI.
 import {
   MCPChatConfiguredEvent,
   captureInspectorEvent,
 } from "@/client/telemetry";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ProviderName } from "@mcp-use/agent";
 import type { AuthConfig, LLMConfig } from "./types";
+import { isPegaAiBaseUrl } from "./pegaAi";
 import {
   DEFAULT_MODELS,
   getDefaultBaseUrl,
@@ -18,16 +20,33 @@ interface UseConfigProps {
   mcpServerUrl: string;
 }
 
+function normalizeEndpoint(baseUrl: string): string {
+  return baseUrl.trim().replace(/\/+$/, "");
+}
+
+function apiKeyStorageKey(provider: ProviderName, baseUrl: string): string {
+  const endpoint = normalizeEndpoint(baseUrl);
+  return providerSupportsBaseUrl(provider) && endpoint
+    ? `${provider}:${endpoint}`
+    : provider;
+}
+
 export function useConfig({ mcpServerUrl }: UseConfigProps) {
   const [llmConfig, setLLMConfig] = useState<LLMConfig | null>(null);
   const [authConfig, setAuthConfig] = useState<AuthConfig | null>(null);
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
 
   // LLM Config form state
-  const [tempProvider, setTempProvider] = useState<ProviderName>("openai");
+  const [tempProvider, setTempProviderState] = useState<ProviderName>(
+    "openai-compatible",
+  );
   const [tempApiKey, setTempApiKey] = useState("");
-  const [tempModel, setTempModel] = useState(DEFAULT_MODELS.openai);
-  const [tempBaseUrl, setTempBaseUrl] = useState(getDefaultBaseUrl("openai"));
+  const [tempModel, setTempModel] = useState(
+    DEFAULT_MODELS["openai-compatible"],
+  );
+  const [tempBaseUrl, setTempBaseUrlState] = useState(
+    getDefaultBaseUrl("openai-compatible"),
+  );
 
   // Load API keys per provider from localStorage
   const getApiKeys = useCallback((): Record<string, string> => {
@@ -66,6 +85,44 @@ export function useConfig({ mcpServerUrl }: UseConfigProps) {
     localStorage.setItem("mcp-inspector-base-urls", JSON.stringify(baseUrls));
   }, []);
 
+  const setTempProvider = useCallback(
+    (provider: ProviderName) => {
+      const baseUrls = getBaseUrls();
+      const baseUrl =
+        baseUrls[provider] || getDefaultBaseUrl(provider);
+      const apiKeys = getApiKeys();
+      const apiKey = apiKeys[apiKeyStorageKey(provider, baseUrl)] || "";
+
+      setTempProviderState(provider);
+      setTempBaseUrlState(baseUrl);
+      setTempApiKey(apiKey);
+      setTempModel(
+        provider === "openai-compatible" && !isPegaAiBaseUrl(baseUrl)
+          ? ""
+          : DEFAULT_MODELS[provider],
+      );
+    },
+    [getApiKeys, getBaseUrls],
+  );
+
+  const setTempBaseUrl = useCallback(
+    (baseUrl: string) => {
+      const apiKeys = getApiKeys();
+      const previousBaseUrl = tempBaseUrl;
+      setTempBaseUrlState(baseUrl);
+      setTempApiKey(apiKeys[apiKeyStorageKey(tempProvider, baseUrl)] || "");
+      if (
+        tempProvider === "openai-compatible" &&
+        normalizeEndpoint(previousBaseUrl) !== normalizeEndpoint(baseUrl)
+      ) {
+        setTempModel(
+          isPegaAiBaseUrl(baseUrl) ? DEFAULT_MODELS["openai-compatible"] : "",
+        );
+      }
+    },
+    [getApiKeys, tempBaseUrl, tempProvider],
+  );
+
   // Auth Config form state
   const [tempAuthType, setTempAuthType] = useState<
     "none" | "basic" | "bearer" | "oauth"
@@ -82,17 +139,31 @@ export function useConfig({ mcpServerUrl }: UseConfigProps) {
       const baseUrls = getBaseUrls();
       if (saved) {
         try {
-          const config = JSON.parse(saved);
-          setLLMConfig(config);
-          setTempProvider(config.provider);
-          // Load API key for the provider from provider-specific storage
-          setTempApiKey(apiKeys[config.provider] || config.apiKey || "");
-          setTempModel(config.model);
-          setTempBaseUrl(
+          const config = JSON.parse(saved) as LLMConfig;
+          const baseUrl =
             baseUrls[config.provider] ||
-              config.baseUrl ||
-              getDefaultBaseUrl(config.provider)
+            config.baseUrl ||
+            getDefaultBaseUrl(config.provider);
+          const configEndpoint = normalizeEndpoint(
+            config.baseUrl || getDefaultBaseUrl(config.provider),
           );
+          const inlineKeyMatchesEndpoint =
+            normalizeEndpoint(baseUrl) === configEndpoint;
+          const scopedApiKey =
+            apiKeys[apiKeyStorageKey(config.provider, baseUrl)] || "";
+          const legacyApiKey = providerSupportsBaseUrl(config.provider)
+            ? ""
+            : apiKeys[config.provider] || "";
+
+          setLLMConfig(config);
+          setTempProviderState(config.provider);
+          setTempBaseUrlState(baseUrl);
+          setTempApiKey(
+            scopedApiKey ||
+              (inlineKeyMatchesEndpoint ? config.apiKey?.trim() || "" : "") ||
+              legacyApiKey,
+          );
+          setTempModel(config.model || DEFAULT_MODELS[config.provider]);
         } catch (error) {
           console.error("Failed to load LLM config:", error);
         }
@@ -159,46 +230,38 @@ export function useConfig({ mcpServerUrl }: UseConfigProps) {
     }
   }, [mcpServerUrl]);
 
-  // Load API key / base URL when provider changes; reset model only on switch.
-  const prevTempProviderRef = useRef(tempProvider);
-  useEffect(() => {
-    const providerChanged = prevTempProviderRef.current !== tempProvider;
-    prevTempProviderRef.current = tempProvider;
-
-    if (providerChanged && !providerSupportsBaseUrl(tempProvider)) {
-      setTempModel(DEFAULT_MODELS[tempProvider]);
-    }
-    const apiKeys = getApiKeys();
-    const baseUrls = getBaseUrls();
-    setTempApiKey(apiKeys[tempProvider] || "");
-    setTempBaseUrl(baseUrls[tempProvider] || getDefaultBaseUrl(tempProvider));
-  }, [tempProvider, getApiKeys, getBaseUrls]);
-
   const saveLLMConfig = useCallback((): boolean => {
-    if (providerRequiresApiKey(tempProvider) && !tempApiKey.trim()) {
+    if (
+      providerRequiresApiKey(tempProvider, tempBaseUrl) &&
+      !tempApiKey.trim()
+    ) {
       return false;
     }
     if (providerSupportsBaseUrl(tempProvider) && !tempBaseUrl.trim()) {
       return false;
     }
 
-    // Save API key for the current provider
+    const apiKey = tempApiKey.trim();
+    const baseUrl = tempBaseUrl.trim();
     const apiKeys = getApiKeys();
-    apiKeys[tempProvider] = tempApiKey;
+    const storageKey = apiKeyStorageKey(tempProvider, baseUrl);
+    if (apiKey) apiKeys[storageKey] = apiKey;
+    else delete apiKeys[storageKey];
+    if (providerSupportsBaseUrl(tempProvider)) delete apiKeys[tempProvider];
     saveApiKeys(apiKeys);
 
-    if (providerSupportsBaseUrl(tempProvider) && tempBaseUrl.trim()) {
+    if (providerSupportsBaseUrl(tempProvider) && baseUrl) {
       const baseUrls = getBaseUrls();
-      baseUrls[tempProvider] = tempBaseUrl.trim();
+      baseUrls[tempProvider] = baseUrl;
       saveBaseUrls(baseUrls);
     }
 
     const newLlmConfig: LLMConfig = {
       provider: tempProvider,
-      apiKey: tempApiKey,
-      model: tempModel,
+      apiKey,
+      model: tempModel.trim(),
       ...(providerSupportsBaseUrl(tempProvider)
-        ? { baseUrl: tempBaseUrl.trim() || getDefaultBaseUrl(tempProvider) }
+        ? { baseUrl: baseUrl || getDefaultBaseUrl(tempProvider) }
         : {}),
     };
 
@@ -259,8 +322,9 @@ export function useConfig({ mcpServerUrl }: UseConfigProps) {
   const clearConfig = useCallback(() => {
     setLLMConfig(null);
     setAuthConfig(null);
-    // Clear API key for current provider only
+    // Clear API key for current provider and endpoint only
     const apiKeys = getApiKeys();
+    delete apiKeys[apiKeyStorageKey(tempProvider, tempBaseUrl)];
     delete apiKeys[tempProvider];
     saveApiKeys(apiKeys);
     // Clear stored base URL for current provider only
@@ -268,7 +332,7 @@ export function useConfig({ mcpServerUrl }: UseConfigProps) {
     delete baseUrls[tempProvider];
     saveBaseUrls(baseUrls);
     setTempApiKey("");
-    setTempBaseUrl(getDefaultBaseUrl(tempProvider));
+    setTempBaseUrlState(getDefaultBaseUrl(tempProvider));
     setTempUsername("");
     setTempPassword("");
     setTempToken("");
@@ -276,7 +340,14 @@ export function useConfig({ mcpServerUrl }: UseConfigProps) {
     localStorage.removeItem("mcp-inspector-llm-config");
     localStorage.removeItem("mcp-inspector-auth-config");
     writeStoredChatMode("managed");
-  }, [tempProvider, getApiKeys, saveApiKeys, getBaseUrls, saveBaseUrls]);
+  }, [
+    tempProvider,
+    tempBaseUrl,
+    getApiKeys,
+    saveApiKeys,
+    getBaseUrls,
+    saveBaseUrls,
+  ]);
 
   return {
     llmConfig,

@@ -1154,12 +1154,18 @@
       "sha256": "488af72942983b5ddb09408b23f018e38bf5975c9f4135d60666ee9666112868"
     }
   ],
+  "localFiles": [
+    "client/components/chat/pegaAi.ts"
+  ],
   "modified": [
     "client/App.tsx",
     "client/components/AddToClientDropdown.tsx",
     "client/components/CommandPalette.tsx",
     "client/components/ConnectionSettingsForm.tsx",
     "client/components/ConnectionSettingsTab.tsx",
+    "client/components/chat/ConfigurationDialog.tsx",
+    "client/components/chat/types.ts",
+    "client/components/chat/useConfig.ts",
     "client/components/Layout.tsx",
     "client/components/LayoutContent.tsx",
     "client/components/LayoutHeader.tsx",

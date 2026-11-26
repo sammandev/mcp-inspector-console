@@ -6,7 +6,7 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
-    "test": "vitest run --config ../../vitest.config.ts src/mcp-use-exports.test.ts src/App.test.tsx src/vite-proxy-policy.test.ts src/features/model.test.ts src/features/analysis.test.ts src/features/network.test.ts src/features/traffic.test.ts src/features/toolLoad.test.ts src/features/documentTitle.test.ts src/opencode-config.test.ts local-relay.test.ts inspector-cli.test.ts vendor-provenance.test.ts",
+    "test": "vitest run --config ../../vitest.config.ts src/mcp-use-exports.test.ts src/App.test.tsx src/vite-proxy-policy.test.ts src/features/model.test.ts src/features/analysis.test.ts src/features/network.test.ts src/features/traffic.test.ts src/features/toolLoad.test.ts src/features/documentTitle.test.ts src/opencode-config.test.ts src/pega-ai-chat.test.ts local-relay.test.ts inspector-server.test.ts inspector-cli.test.ts vendor-provenance.test.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

@@ -76,6 +76,190 @@ async function boundedRequest(request: Request, maxBytes: number): Promise<Reque
   });
 }
 
+export function parseApprovedMcpTargets(value: string | undefined): ReadonlySet<string> {
+  const targets = new Set<string>();
+  for (const rawTarget of (value ?? "").split(",").map((item) => item.trim()).filter(Boolean)) {
+    let target: URL;
+    try {
+      target = new URL(rawTarget);
+    } catch {
+      throw new Error(`MCP_INSPECTOR_ALLOWED_TARGETS contains an invalid URL: ${rawTarget}`);
+    }
+    if ((target.protocol !== "http:" && target.protocol !== "https:") || target.username || target.password) {
+      throw new Error(`MCP_INSPECTOR_ALLOWED_TARGETS must contain HTTP(S) URLs without credentials: ${rawTarget}`);
+    }
+    targets.add(target.href);
+  }
+  return targets;
+}
+
+const HOP_BY_HOP_HEADERS = [
+  "connection",
+  "keep-alive",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "proxy-connection",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "upgrade",
+];
+
+function stripHopByHopHeaders(headers: Headers): void {
+  const connectionHeaders = (headers.get("connection") ?? "")
+    .split(",")
+    .map((name) => name.trim().toLowerCase())
+    .filter(Boolean);
+  for (const header of [...HOP_BY_HOP_HEADERS, ...connectionHeaders]) {
+    headers.delete(header);
+  }
+}
+
+export async function proxyApprovedMcpRequest(
+  request: Request,
+  allowedTargets: ReadonlySet<string>,
+): Promise<Response | undefined> {
+  const rawTarget = request.headers.get("X-Target-URL");
+  if (!rawTarget) return;
+
+  let target: URL;
+  try {
+    target = new URL(rawTarget);
+  } catch {
+    return;
+  }
+  if (!allowedTargets.has(target.href)) return;
+  if ((target.protocol !== "http:" && target.protocol !== "https:") || target.username || target.password) return;
+
+  const headers = new Headers(request.headers);
+  stripHopByHopHeaders(headers);
+  for (const header of [
+    "content-length", "cookie", "host", "origin", "referer", "x-target-url",
+  ]) headers.delete(header);
+  for (const header of Array.from(headers.keys())) {
+    if (header.startsWith("sec-fetch-")) headers.delete(header);
+  }
+
+  const method = request.method.toUpperCase();
+  const body = method === "GET" || method === "HEAD" ? undefined : await request.arrayBuffer();
+  try {
+    const upstream = await fetch(target, {
+      method,
+      headers,
+      body,
+      redirect: "error",
+      signal: request.signal,
+    });
+    const responseHeaders = new Headers(upstream.headers);
+    stripHopByHopHeaders(responseHeaders);
+    for (const header of ["content-encoding", "content-length", "set-cookie"]) {
+      responseHeaders.delete(header);
+    }
+    return new Response(upstream.body, {
+      status: upstream.status,
+      statusText: upstream.statusText,
+      headers: responseHeaders,
+    });
+  } catch {
+    return Response.json({ error: "Approved MCP target unavailable" }, { status: 502 });
+  }
+}
+
+const DEFAULT_PEGA_AI_PROXY_URL = "http://10.176.2.139:4714";
+const PEGA_AI_PROXY_PREFIX = "/mcp/inspector/api/pegaai/";
+const PEGA_AI_MODEL_STATUS_PATH = "/maas/api/v1/model-status/public/models";
+
+export function parsePegaAiProxyUrl(value: string | undefined): URL {
+  const rawUrl = value?.trim() || DEFAULT_PEGA_AI_PROXY_URL;
+  let target: URL;
+  try {
+    target = new URL(rawUrl);
+  } catch {
+    throw new Error(`MCP_INSPECTOR_PEGA_AI_URL contains an invalid URL: ${rawUrl}`);
+  }
+  if (target.protocol !== "http:" && target.protocol !== "https:") {
+    throw new Error(`MCP_INSPECTOR_PEGA_AI_URL must use HTTP(S): ${rawUrl}`);
+  }
+  if (target.username || target.password) {
+    throw new Error(`MCP_INSPECTOR_PEGA_AI_URL must not contain credentials: ${rawUrl}`);
+  }
+  if (target.pathname !== "/" || target.search || target.hash) {
+    throw new Error(`MCP_INSPECTOR_PEGA_AI_URL must be an origin without a path, query, or fragment: ${rawUrl}`);
+  }
+  return target;
+}
+
+export async function proxyPegaAiRequest(
+  request: Request,
+  upstreamBaseUrl: URL,
+): Promise<Response | undefined> {
+  const requestUrl = new URL(request.url);
+  if (!requestUrl.pathname.startsWith(PEGA_AI_PROXY_PREFIX)) return;
+
+  const relativePath = `/${requestUrl.pathname.slice(PEGA_AI_PROXY_PREFIX.length)}`;
+  const segments = relativePath.split("/");
+  if (
+    relativePath.includes("%") ||
+    relativePath.includes("\\") ||
+    relativePath.includes("//") ||
+    segments.includes(".") ||
+    segments.includes("..")
+  ) return;
+  if (
+    !relativePath.startsWith("/v1/") &&
+    relativePath !== PEGA_AI_MODEL_STATUS_PATH
+  ) return;
+
+  const target = new URL(relativePath, upstreamBaseUrl);
+  if (target.origin !== upstreamBaseUrl.origin || target.pathname !== relativePath) {
+    return;
+  }
+  target.search = requestUrl.search;
+  const headers = new Headers(request.headers);
+  stripHopByHopHeaders(headers);
+  for (const header of [
+    "content-length",
+    "cookie",
+    "host",
+    "origin",
+    "referer",
+    "x-forwarded-for",
+    "x-forwarded-host",
+    "x-forwarded-proto",
+  ]) headers.delete(header);
+  for (const header of Array.from(headers.keys())) {
+    if (header.startsWith("sec-fetch-")) headers.delete(header);
+  }
+
+  const method = request.method.toUpperCase();
+  const body = method === "GET" || method === "HEAD"
+    ? undefined
+    : await request.arrayBuffer();
+  try {
+    const upstream = await fetch(target, {
+      method,
+      headers,
+      body,
+      redirect: "error",
+      signal: request.signal,
+    });
+    const responseHeaders = new Headers(upstream.headers);
+    stripHopByHopHeaders(responseHeaders);
+    for (const header of [
+      "content-encoding",
+      "content-length",
+      "set-cookie",
+    ]) responseHeaders.delete(header);
+    return new Response(upstream.body, {
+      status: upstream.status,
+      statusText: upstream.statusText,
+      headers: responseHeaders,
+    });
+  } catch {
+    return Response.json({ error: "PegaAI upstream unavailable" }, { status: 502 });
+  }
+}
+
 // Boot globals normally injected by mountInspector's embedded HTML document.
 const PROCESS_SHIM = "if(typeof window.process===\"undefined\"){window.process={env:{},platform:\"browser\",browser:true," +
   "version:\"v18.0.0\",versions:{node:\"18.0.0\"},cwd:()=>\"/\",nextTick:(fn,...args)=>queueMicrotask(()=>fn(...args))};}";
@@ -119,6 +303,8 @@ export function mcpUseInspector(): Plugin {
 
   process.env.MCP_USE_ANONYMIZED_TELEMETRY = "false";
   const localRelay = createLocalRelay();
+  const approvedMcpTargets = parseApprovedMcpTargets(process.env.MCP_INSPECTOR_ALLOWED_TARGETS);
+  const pegaAiProxyUrl = parsePegaAiProxyUrl(process.env.MCP_INSPECTOR_PEGA_AI_URL);
   const inspector = mountInspector({
     basePath: "/mcp",
     autoConnectUrl: null,
@@ -131,6 +317,10 @@ export function mcpUseInspector(): Plugin {
       if (/^\/mcp\/inspector\/api\/local(?:\/|$)/.test(new URL(request.url).pathname)) {
         return localRelay.handle(bounded);
       }
+      const pegaAiProxyResponse = await proxyPegaAiRequest(bounded, pegaAiProxyUrl);
+      if (pegaAiProxyResponse) return pegaAiProxyResponse;
+      const approvedProxyResponse = await proxyApprovedMcpRequest(bounded, approvedMcpTargets);
+      if (approvedProxyResponse) return approvedProxyResponse;
       return inspector(bounded);
     }
     return inspector(request);
