@@ -9,5 +9,5 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["vite/client", "node"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts", "inspector-server.ts", "inspector-cli.ts", "local-relay.test.ts", "inspector-cli.test.ts", "vendor-provenance.test.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "accounts/**/*.ts", "vite.config.ts", "inspector-server.ts", "inspector-cli.ts", "local-relay.test.ts", "inspector-cli.test.ts", "vendor-provenance.test.ts"]
 }

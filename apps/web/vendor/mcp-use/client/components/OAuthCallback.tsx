@@ -1,4 +1,7 @@
+// Modified for the combined Inspector: reject OAuth callbacks from a departed account.
 import { onMcpAuthorization } from "@mcp-use/client/react";
+import { useOptionalAccount } from "../../../../src/accounts/AccountProvider.js";
+import { assertOAuthCallbackScope } from "../../../../src/accounts/api.js";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 
@@ -9,6 +12,7 @@ import { Loader2 } from "lucide-react";
  * Exchanges the authorization code for tokens and redirects back to the app.
  */
 export function OAuthCallback() {
+  const account = useOptionalAccount();
   const [status, setStatus] = useState<"processing" | "success" | "error">(
     "processing"
   );
@@ -16,10 +20,12 @@ export function OAuthCallback() {
 
   useEffect(() => {
     console.log("[OAuthCallback] Component mounted, handling authorization...");
-    console.log("[OAuthCallback] Current URL:", window.location.href);
 
     // Run the OAuth callback handler
-    onMcpAuthorization()
+    Promise.resolve().then(() => {
+      if (account) assertOAuthCallbackScope(account.session?.id);
+      return onMcpAuthorization();
+    })
       .then(() => {
         console.log("[OAuthCallback] Authorization successful");
         setStatus("success");

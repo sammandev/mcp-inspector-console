@@ -4,9 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "accounts:migrate": "node accounts/migrate.mjs",
+    "accounts:generate-key": "node accounts/migrate.mjs --generate-key",
     "build": "vite build",
     "dev": "vite",
-    "test": "vitest run --config ../../vitest.config.ts src/mcp-use-exports.test.ts src/App.test.tsx src/vite-proxy-policy.test.ts src/features/model.test.ts src/features/analysis.test.ts src/features/network.test.ts src/features/traffic.test.ts src/features/toolLoad.test.ts src/features/documentTitle.test.ts src/opencode-config.test.ts src/pega-ai-chat.test.ts local-relay.test.ts inspector-server.test.ts inspector-cli.test.ts vendor-provenance.test.ts",
+    "test": "vitest run --config ../../vitest.config.ts --exclude e2e/** src/mcp-use-exports.test.ts src/App.test.tsx src/vite-proxy-policy.test.ts src/features/model.test.ts src/features/analysis.test.ts src/features/network.test.ts src/features/traffic.test.ts src/features/toolLoad.test.ts src/features/documentTitle.test.ts src/opencode-config.test.ts src/pega-ai-chat.test.ts src/accounts accounts local-relay.test.ts inspector-server.test.ts inspector-cli.test.ts vendor-provenance.test.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
@@ -24,6 +26,7 @@
     "lucide-react": "0.562.0",
     "markdown-to-jsx": "9.11.0",
     "motion": "12.43.0",
+    "pg": "^8.16.3",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "react-resizable-panels": "4.24.1",
@@ -36,6 +39,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@types/pg": "^8.15.5",
     "@tailwindcss/vite": "4.3.5",
     "@testing-library/react": "16.3.3",
     "@testing-library/user-event": "14.6.13",

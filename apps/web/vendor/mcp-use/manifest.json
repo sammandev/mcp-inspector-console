@@ -1158,6 +1158,10 @@
     "client/components/chat/pegaAi.ts"
   ],
   "modified": [
+    "client/components/chat/ConfigureEmptyState.tsx",
+    "client/components/OAuthCallback.tsx",
+    "client/chat-history/ChatList.tsx",
+    "client/chat-history/ChatHistoryPanel.tsx",
     "client/App.tsx",
     "client/components/AddToClientDropdown.tsx",
     "client/components/CommandPalette.tsx",
@@ -1166,6 +1170,9 @@
     "client/components/chat/ConfigurationDialog.tsx",
     "client/components/chat/types.ts",
     "client/components/chat/useConfig.ts",
+    "client/components/chat/useChatMessagesClientSide.ts",
+    "client/components/chat/useChatSessions.ts",
+    "client/components/ChatTab.tsx",
     "client/components/Layout.tsx",
     "client/components/LayoutContent.tsx",
     "client/components/LayoutHeader.tsx",

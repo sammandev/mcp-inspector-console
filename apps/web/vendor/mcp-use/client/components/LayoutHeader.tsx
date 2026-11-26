@@ -20,6 +20,8 @@ import type { McpServer } from "@mcp-use/client/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { HostedUserMenu } from "@/client/components/HostedUserMenu";
+import { AccountMenu } from "../../../../src/accounts/AccountMenu.js";
+import { useOptionalAccount } from "../../../../src/accounts/AccountProvider.js";
 import { TabCountBadge } from "./shared/TabCountBadge";
 import { AddToClientDropdown } from "./AddToClientDropdown";
 import LogoAnimated from "./LogoAnimated";
@@ -79,6 +81,7 @@ export function LayoutHeader({
     embeddedConfig,
   } = useInspector();
   const [mobileTabsCollapsed] = useState(true);
+  const account = useOptionalAccount();
 
   const tunnelPopover = useTunnelPopoverOpen(tunnelUrl);
 
@@ -216,7 +219,7 @@ export function LayoutHeader({
   };
 
   const renderLoginButton = (compact = false) =>
-    embeddedConfig.chatApiUrl ? (
+    account ? <AccountMenu compact={compact} /> : embeddedConfig.chatApiUrl ? (
       <HostedUserMenu
         chatApiUrl={embeddedConfig.chatApiUrl}
         compact={compact}

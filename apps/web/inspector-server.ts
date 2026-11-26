@@ -3,8 +3,14 @@ import { mountInspector } from "@mcp-use/inspector";
 import type { IncomingMessage } from "node:http";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
+import { loadEnvFile } from "node:process";
 import type { Plugin, PreviewServer, ViteDevServer } from "vite";
 import { createLocalRelay } from "./local-relay.js";
+import { readAccountConfig } from "./accounts/config.js";
+import { AccountStore } from "./accounts/store.js";
+import { AccountService, ACCOUNT_PATH } from "./accounts/api.js";
+import { relayProviderRequest } from "./accounts/provider-relay.js";
 
 const INSPECTOR_PATH = "/mcp/inspector";
 const LOOPBACK_ADDRESSES = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
@@ -296,6 +302,8 @@ export function inspectorDocument(html: string, origin: string): string {
 }
 
 export function mcpUseInspector(): Plugin {
+  const envPath = fileURLToPath(new URL("../../.env", import.meta.url));
+  if (existsSync(envPath)) loadEnvFile(envPath);
   const maxBytes = Number.parseInt(process.env.GATEWAY_MAX_REQUEST_BYTES ?? "1048576", 10);
   if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
     throw new Error("GATEWAY_MAX_REQUEST_BYTES must be a positive integer");
@@ -305,6 +313,22 @@ export function mcpUseInspector(): Plugin {
   const localRelay = createLocalRelay();
   const approvedMcpTargets = parseApprovedMcpTargets(process.env.MCP_INSPECTOR_ALLOWED_TARGETS);
   const pegaAiProxyUrl = parsePegaAiProxyUrl(process.env.MCP_INSPECTOR_PEGA_AI_URL);
+  let accounts: AccountService | undefined;
+  try {
+    const config = readAccountConfig(process.env);
+    accounts = new AccountService(config, new AccountStore(config.databaseUrl, config.encryptionKey));
+  } catch {
+    console.warn("Inspector accounts are unavailable: configure DATABASE_URL, MCP_INSPECTOR_ENCRYPTION_KEY and ADMIN_* on the server.");
+  }
+  const approvedProviderOrigins = new Set([
+    pegaAiProxyUrl.origin, "http://localhost:11434", "http://127.0.0.1:11434",
+    ...(process.env.MCP_INSPECTOR_PROVIDER_ORIGINS ?? "").split(",").map(value => value.trim()).filter(Boolean).map(value => {
+      const url = new URL(value);
+      if (!["http:", "https:"].includes(url.protocol) || url.username || url.password ||
+          url.pathname !== "/" || url.search || url.hash) throw new Error("MCP_INSPECTOR_PROVIDER_ORIGINS must contain HTTP(S) origins without credentials");
+      return url.origin;
+    }),
+  ]);
   const inspector = mountInspector({
     basePath: "/mcp",
     autoConnectUrl: null,
@@ -314,6 +338,11 @@ export function mcpUseInspector(): Plugin {
     if (new URL(request.url).pathname.startsWith(`${INSPECTOR_PATH}/api/`)) {
       const bounded = await boundedRequest(request, maxBytes);
       if (bounded instanceof Response) return bounded;
+      if (new URL(request.url).pathname.startsWith(ACCOUNT_PATH)) {
+        if (!accounts) return Response.json({ error: "Inspector accounts are not configured on this server" }, { status: 503 });
+        const relayed = await relayProviderRequest(bounded, accounts, approvedProviderOrigins, pegaAiProxyUrl);
+        return relayed ?? (await accounts.handle(bounded)) ?? new Response("Not found", { status: 404 });
+      }
       if (/^\/mcp\/inspector\/api\/local(?:\/|$)/.test(new URL(request.url).pathname)) {
         return localRelay.handle(bounded);
       }
@@ -335,6 +364,7 @@ export function mcpUseInspector(): Plugin {
   function configure(server: ViteDevServer | PreviewServer) {
     server.httpServer?.once("close", () => {
       void localRelay.close().catch((error) => console.error("Local MCP cleanup failed:", error));
+      void accounts?.close().catch(() => console.error("Inspector account database cleanup failed"));
     });
     server.middlewares.use((request, response, next) => {
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
@@ -357,7 +387,7 @@ export function mcpUseInspector(): Plugin {
         response.end("Inspector requests must come from this local origin");
         return;
       }
-      const uiRoute = /^\/mcp\/inspector(?:\/(?:oauth\/callback|auth\/callback|preview\/[^/]+))?\/?$/.test(url.pathname);
+      const uiRoute = /^\/mcp\/inspector(?:\/(?:sign-in|oauth\/callback|auth\/callback|preview\/[^/]+))?\/?$/.test(url.pathname);
       if (uiRoute && (request.method === "GET" || request.method === "HEAD")) {
         const preview = !("transformIndexHtml" in server);
         const path = fileURLToPath(new URL(preview ? "./dist/index.html" : "./index.html", import.meta.url));
@@ -376,6 +406,6 @@ export function mcpUseInspector(): Plugin {
     name: "mcp-use-inspector",
     configureServer: configure,
     configurePreviewServer: configure,
-    closeBundle: () => localRelay.close(),
+    closeBundle: async () => { await localRelay.close(); await accounts?.close(); },
   };
 }

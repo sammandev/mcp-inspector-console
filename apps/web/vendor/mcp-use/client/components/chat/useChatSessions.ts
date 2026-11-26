@@ -1,3 +1,4 @@
+// Modified for the combined Inspector: surface account chat-history save failures.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatStorageProvider } from "../../chat-history/types";
 import { readPendingChatTurnForServer } from "./chat-auth-retry";
@@ -7,6 +8,7 @@ import {
   type ChatSessionStore,
 } from "./chat-session-store";
 import type { Message } from "./types";
+import { toast } from "sonner";
 
 export interface UseChatSessionsParams {
   /** Server identity the OAuth retry record is filed under. */
@@ -185,6 +187,7 @@ export function useChatSessions({
           // History is a convenience — a storage failure must not block chatting.
           store.update(sessionId, { creation: null });
           console.error("Failed to create chat history entry:", error);
+          toast.error(error instanceof Error ? error.message : "Could not create chat history");
           return null;
         });
 
@@ -207,7 +210,11 @@ export function useChatSessions({
         return;
       }
       void getOrCreatePersistedChat(sessionId).then((chatId) => {
-        if (chatId) void saveMessages(chatId, messages);
+        if (chatId) void saveMessages(chatId, messages).catch(error => {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          console.error("Failed to save chat history");
+          toast.error(error instanceof Error ? error.message : "Could not save chat history");
+        });
       });
     },
     [getOrCreatePersistedChat, storage, store]

@@ -128,18 +128,6 @@ export function AddToClientDropdown({
     }
   };
 
-  const handleCursorClick = () => {
-    trackAddToClient("cursor");
-    try {
-      const deepLink = generateCursorDeepLink(url, name, headers);
-      window.location.href = deepLink;
-      onSuccess?.("Cursor");
-    } catch (error) {
-      console.error("Failed to generate Cursor deep link:", error);
-      onError?.(error as Error);
-    }
-  };
-
   const handleVSCodeClick = () => {
     trackAddToClient("vscode");
     try {
@@ -164,17 +152,6 @@ export function AddToClientDropdown({
     }
   };
 
-  const handleClaudeDesktopClick = () => {
-    trackAddToClient("claude-desktop");
-    try {
-      downloadMcpbFile(url, name, headers);
-      onSuccess?.("Claude Desktop");
-    } catch (error) {
-      console.error("Failed to download .mcpb file:", error);
-      onError?.(error as Error);
-    }
-  };
-
   const handleClaudeCodeClick = () => {
     trackAddToClient("claude-code");
     setSelectedClient("claude-code");
@@ -184,12 +161,6 @@ export function AddToClientDropdown({
   const handleGeminiCLIClick = () => {
     trackAddToClient("gemini-cli");
     setSelectedClient("gemini-cli");
-    setShowModal(true);
-  };
-
-  const handleCodexCLIClick = () => {
-    trackAddToClient("codex-cli");
-    setSelectedClient("codex-cli");
     setShowModal(true);
   };
 
@@ -585,22 +556,6 @@ export function AddToClientDropdown({
           {additionalItems.length > 0 && <DropdownMenuSeparator />}
 
           {/* Client Options */}
-          {showClients.cursor && (
-            <DropdownMenuItem
-              onClick={handleCursorClick}
-              className={clientMenuItemClassName}
-            >
-              <img
-                src="https://cdn.simpleicons.org/cursor"
-                alt="Cursor"
-                className="h-4 w-4"
-              />
-              <span className="min-w-0 max-w-full whitespace-nowrap">
-                Cursor
-              </span>
-            </DropdownMenuItem>
-          )}
-
           {showClients.claudeCode && (
             <DropdownMenuItem
               onClick={handleClaudeCodeClick}
@@ -613,22 +568,6 @@ export function AddToClientDropdown({
               />
               <span className="min-w-0 max-w-full whitespace-nowrap">
                 Claude Code
-              </span>
-            </DropdownMenuItem>
-          )}
-
-          {showClients.claudeDesktop && (
-            <DropdownMenuItem
-              onClick={handleClaudeDesktopClick}
-              className={clientMenuItemClassName}
-            >
-              <img
-                src="https://cdn.simpleicons.org/claude"
-                alt="Claude"
-                className="h-4 w-4"
-              />
-              <span className="min-w-0 max-w-full whitespace-nowrap">
-                Claude Desktop
               </span>
             </DropdownMenuItem>
           )}
@@ -669,22 +608,6 @@ export function AddToClientDropdown({
               />
               <span className="min-w-0 max-w-full whitespace-nowrap">
                 Gemini CLI
-              </span>
-            </DropdownMenuItem>
-          )}
-
-          {showClients.codexCli && (
-            <DropdownMenuItem
-              onClick={handleCodexCLIClick}
-              className={clientMenuItemClassName}
-            >
-              <img
-                src={providerAssetUrl("openai.png")}
-                alt="Codex"
-                className="h-4 w-4"
-              />
-              <span className="min-w-0 max-w-full whitespace-nowrap">
-                Codex CLI
               </span>
             </DropdownMenuItem>
           )}

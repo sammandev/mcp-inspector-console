@@ -1,8 +1,13 @@
+// Modified for the combined Inspector: unify history rows with compact rename/delete controls.
 import { cn } from "@/client/lib/utils";
 import { Input } from "@/client/components/ui/input";
 import { NotFound } from "@/client/components/ui/not-found";
 import { Skeleton } from "@/client/components/ui/skeleton";
-import { Search } from "lucide-react";
+import { MoreHorizontal, Search } from "lucide-react";
+import { Button } from "@/client/components/ui/button";
+import { Label } from "@/client/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/client/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/client/components/ui/dropdown-menu";
 import * as React from "react";
 import { ChatTitleReveal } from "./ChatTitleReveal";
 import type { ChatSession } from "./types";
@@ -11,7 +16,8 @@ export type { ChatSession };
 
 interface ChatListProps {
   chats: ChatSession[];
-  onDelete: (id: string) => void;
+  onDelete: (id: string) => void | Promise<void>;
+  onRename?: (id: string, title: string) => Promise<void>;
   /** When provided, render buttons that call this instead of navigation links */
   onSelect?: (chatId: string) => void;
   /** When true, align item content with header (reduced horizontal padding) */
@@ -54,7 +60,8 @@ function ChatItemSkeleton({
 
 export function ChatList({
   chats,
-  onDelete: _onDelete,
+  onDelete,
+  onRename,
   onSelect,
   compact,
   hideAgentName,
@@ -62,6 +69,22 @@ export function ChatList({
   currentChatId,
 }: ChatListProps) {
   const [searchTerm, setSearchTerm] = React.useState("");
+  const [editing, setEditing] = React.useState<{ chat: ChatSession; action: "rename" | "delete" } | null>(null);
+  const [name, setName] = React.useState(""), [busy, setBusy] = React.useState(false), [error, setError] = React.useState<string | null>(null);
+  function edit(chat: ChatSession, action: "rename" | "delete") {
+    setName(chat.title); setError(null); setEditing({ chat, action });
+  }
+  async function confirm(event: React.FormEvent) {
+    event.preventDefault();
+    if (!editing) return;
+    setBusy(true); setError(null);
+    try {
+      if (editing.action === "rename") await onRename?.(editing.chat.id, name.trim());
+      else await onDelete(editing.chat.id);
+      setEditing(null);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Chat update failed"); }
+    finally { setBusy(false); }
+  }
 
   const visibleChats = chats.filter((chat) => chat.type !== "agent_execution");
 
@@ -105,11 +128,7 @@ export function ChatList({
 
   const renderChatItem = (chat: ChatSession) => (
     <div
-      className={cn(
-        "flex items-center justify-between py-3 hover:bg-muted/50 transition-colors gap-2 cursor-pointer",
-        compact ? "px-4" : "px-3 rounded-lg",
-        currentChatId === chat.id && "bg-muted/50"
-      )}
+      className="flex min-w-0 items-center justify-between gap-2 py-3 pl-3 pr-2"
     >
       <div
         className={cn(
@@ -163,22 +182,37 @@ export function ChatList({
 
     return (
       <div className="space-y-1">
-        {filteredChats.map((chat) =>
-          onSelect ? (
+        {filteredChats.map((chat) => (
+          <div
+            key={chat.id}
+            className={cn(
+              "flex min-w-0 items-center rounded-lg transition-colors hover:bg-muted/50 focus-within:bg-muted/50 has-[[aria-expanded=true]]:bg-muted/50",
+              compact && "mx-2",
+              currentChatId === chat.id && "bg-muted/50"
+            )}
+          >
+            {onSelect ? (
             <button
-              key={chat.id}
               type="button"
               onClick={() => onSelect(chat.id)}
-              className="block w-full text-left group cursor-pointer"
+              aria-current={currentChatId === chat.id ? "page" : undefined}
+              className="block min-w-0 flex-1 rounded-lg text-left cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               {renderChatItem(chat)}
             </button>
           ) : (
-            <div key={chat.id} className="block group cursor-pointer">
+            <div className="block min-w-0 flex-1 cursor-pointer">
               {renderChatItem(chat)}
             </div>
-          )
-        )}
+            )}
+            <DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" className="mr-1 shrink-0 rounded-md" aria-label={`Chat actions for ${chat.title}`}><MoreHorizontal className="size-4" /></Button>} />
+              <DropdownMenuContent align="end" className="w-40">
+                {onRename && <DropdownMenuItem onSelect={() => edit(chat, "rename")}>Rename</DropdownMenuItem>}
+                <DropdownMenuItem variant="destructive" onSelect={() => edit(chat, "delete")}>Delete</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ))}
       </div>
     );
   };
@@ -198,6 +232,18 @@ export function ChatList({
       </div>
 
       <div className="min-h-0 flex-1">{renderChatList()}</div>
+      <Dialog open={Boolean(editing)} onOpenChange={open => { if (!open && !busy) setEditing(null); }}>
+        <DialogContent><DialogHeader>
+          <DialogTitle>{editing?.action === "rename" ? "Rename chat" : "Delete chat?"}</DialogTitle>
+          <DialogDescription>{editing?.action === "rename" ? "Choose a name for this conversation." : "This removes the saved conversation and its messages. This cannot be undone."}</DialogDescription>
+        </DialogHeader>
+          <form onSubmit={confirm} className="space-y-5">
+            {editing?.action === "rename" && <div className="space-y-2"><Label htmlFor="chat-name">Chat name</Label><Input id="chat-name" autoFocus value={name} onChange={event => setName(event.target.value)} required maxLength={256} disabled={busy} /></div>}
+            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+            <div className="flex justify-end gap-2"><Button type="button" variant="ghost" disabled={busy} onClick={() => setEditing(null)}>Cancel</Button><Button type="submit" variant={editing?.action === "delete" ? "destructive" : "default"} disabled={busy || editing?.action === "rename" && !name.trim()}>{editing?.action === "rename" ? "Save name" : "Delete chat"}</Button></div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

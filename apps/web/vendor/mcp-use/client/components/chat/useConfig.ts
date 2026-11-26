@@ -15,6 +15,10 @@ import {
 } from "./types";
 import { hashString } from "./utils";
 import { writeStoredChatMode } from "./chatModeStorage";
+import { useOptionalAccount } from "../../../../../src/accounts/AccountProvider.js";
+import { useAccountConfig } from "../../../../../src/accounts/useAccountConfig.js";
+import { FALLBACK_MANAGED_MODEL_ID } from "./freeTier";
+import { toast } from "sonner";
 
 interface UseConfigProps {
   mcpServerUrl: string;
@@ -31,7 +35,12 @@ function apiKeyStorageKey(provider: ProviderName, baseUrl: string): string {
     : provider;
 }
 
-export function useConfig({ mcpServerUrl }: UseConfigProps) {
+export function useConfig(props: UseConfigProps) {
+  const account = useOptionalAccount();
+  return account?.session ? useAccountConfig() : useLegacyConfig(props);
+}
+
+function useLegacyConfig({ mcpServerUrl }: UseConfigProps) {
   const [llmConfig, setLLMConfig] = useState<LLMConfig | null>(null);
   const [authConfig, setAuthConfig] = useState<AuthConfig | null>(null);
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
@@ -140,6 +149,12 @@ export function useConfig({ mcpServerUrl }: UseConfigProps) {
       if (saved) {
         try {
           const config = JSON.parse(saved) as LLMConfig;
+          if (config.provider !== "openai-compatible" ||
+              config.model === FALLBACK_MANAGED_MODEL_ID && config.baseUrl === "https://cloud.manufact.com/api/v1/inspector/llm") {
+            localStorage.removeItem("mcp-inspector-llm-config");
+            toast.info("The previous provider is no longer available. Configure your OpenAI-compatible endpoint to continue.");
+            return;
+          }
           const baseUrl =
             baseUrls[config.provider] ||
             config.baseUrl ||

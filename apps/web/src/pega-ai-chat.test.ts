@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // @vitest-environment-options {"url":"http://localhost:5173"}
-import { act, cleanup, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { createElement, type PropsWithChildren } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -23,6 +23,7 @@ import {
   useInspector,
 } from "../vendor/mcp-use/client/context/InspectorContext.js";
 import { ThemeProvider } from "../vendor/mcp-use/client/context/ThemeContext.js";
+import { AccountProvider } from "./accounts/AccountProvider.js";
 
 Object.defineProperty(window, "matchMedia", {
   configurable: true,
@@ -149,6 +150,41 @@ describe("PegaAI model catalog", () => {
 });
 
 describe("PegaAI chat defaults", () => {
+  it("allows an anonymous Inspector account to configure OpenAI Compatible", async () => {
+    vi.stubGlobal("fetch", async () => Response.json(null));
+    const wrapper = ({ children }: PropsWithChildren) => createElement(AccountProvider, null, children);
+    const { result } = renderHook(() => useConfig({ mcpServerUrl: "http://localhost:39064/mcp" }), { wrapper });
+    act(() => result.current.setTempBaseUrl("http://localhost:11434/v1"));
+    act(() => result.current.setTempModel("fixture-model"));
+    let saved: boolean | undefined;
+    await act(async () => { saved = await result.current.saveLLMConfig(); });
+    expect(saved).toBe(true);
+    expect(result.current.llmConfig).toMatchObject({
+      provider: "openai-compatible", model: "fixture-model", apiKey: "",
+      baseUrl: "http://localhost:11434/v1",
+    });
+  });
+  it("offers only OpenAI Compatible without a fallback or an OpenAI logo", async () => {
+    render(createElement(ThemeProvider, { defaultTheme: "light", children: createElement(ConfigurationDialog, {
+      open: true, onOpenChange: () => {}, tempProvider: "openai-compatible", tempModel: PEGA_AI_DEFAULT_MODEL,
+      tempApiKey: "", tempBaseUrl: PEGA_AI_BASE_URL, onProviderChange: () => {}, onModelChange: () => {},
+      onApiKeyChange: () => {}, onBaseUrlChange: () => {}, onSave: () => {},
+    }) }));
+    fireEvent.click(screen.getByRole("combobox"));
+    const options = await screen.findAllByRole("option");
+    expect(options.map(option => option.textContent?.trim())).toEqual(["OpenAI Compatible"]);
+    expect(screen.queryByRole("img", { name: "OpenAI" })).toBeNull();
+  });
+  it("does not reconnect a previously saved built-in Manufact fallback", () => {
+    localStorage.setItem("mcp-inspector-llm-config", JSON.stringify({
+      provider: "openai-compatible", model: "openai/gpt-5.6-luna", apiKey: "server-managed",
+      baseUrl: "https://cloud.manufact.com/api/v1/inspector/llm",
+    }));
+    const { result } = renderHook(() => useConfig({ mcpServerUrl: "http://localhost:39064/mcp" }));
+    expect(result.current.llmConfig).toBeNull();
+    expect(result.current.tempProvider).toBe("openai-compatible");
+    expect(localStorage.getItem("mcp-inspector-llm-config")).toBeNull();
+  });
   it("does not seed Manufact hosted chat or free-tier upgrade defaults", () => {
     const wrapper = ({ children }: PropsWithChildren) =>
       createElement(InspectorProvider, null, children);
@@ -184,23 +220,24 @@ describe("PegaAI chat defaults", () => {
     localStorage.setItem(
       "mcp-inspector-llm-config",
       JSON.stringify({
-        provider: "anthropic",
-        model: "claude-test-model",
+        provider: "openai-compatible",
+        model: "compatible-test-model",
+        baseUrl: "http://localhost:11434/v1",
         apiKey: "legacy-inline-key",
       }),
     );
     localStorage.setItem(
       "mcp-inspector-api-keys",
-      JSON.stringify({ anthropic: "legacy-provider-key" }),
+      JSON.stringify({ "openai-compatible:http://localhost:11434/v1": "legacy-provider-key" }),
     );
 
     const { result } = renderHook(() => useConfig({ mcpServerUrl: "http://localhost:39064/mcp" }));
 
-    await waitFor(() => expect(result.current.llmConfig?.provider).toBe("anthropic"));
-    expect(result.current.llmConfig?.model).toBe("claude-test-model");
+    await waitFor(() => expect(result.current.llmConfig?.provider).toBe("openai-compatible"));
+    expect(result.current.llmConfig?.model).toBe("compatible-test-model");
     expect(result.current.tempApiKey).toBe("legacy-provider-key");
-    expect(result.current.tempModel).toBe("claude-test-model");
-    expect(result.current.tempBaseUrl).toBe("");
+    expect(result.current.tempModel).toBe("compatible-test-model");
+    expect(result.current.tempBaseUrl).toBe("http://localhost:11434/v1");
   });
 
   it("clears only the key scoped to the active endpoint", () => {

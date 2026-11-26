@@ -1,6 +1,9 @@
 // Modified for the combined Inspector: remove hosted onboarding and support PegaAI model discovery.
 import { Check, ChevronsUpDown, Eye, EyeOff, Key, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { z } from "zod";
+import { useOptionalAccount } from "../../../../../src/accounts/AccountProvider.js";
+import { providerSchema } from "../../../../../src/accounts/api.js";
 
 import { Button } from "@/client/components/ui/button";
 import { TabsSubtle, TabsSubtleItem } from "@/client/components/ui/tabs-subtle";
@@ -327,6 +330,9 @@ export function ConfigurationDialog({
   onSaveManagedCloud,
 }: ConfigurationDialogProps) {
   const [models, setModels] = useState<ModelOption[]>([]);
+  const account = useOptionalAccount();
+  const accountClient = account?.client;
+  const [keySaved, setKeySaved] = useState(false);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [modelError, setModelError] = useState<string | null>(null);
   const [comboboxOpen, setComboboxOpen] = useState(false);
@@ -338,6 +344,14 @@ export function ConfigurationDialog({
     hostedInspector || freeTierInfo || managedCloudInfo
   );
   const isCloudTab = Boolean(managedCloudInfo && configTabIndex === 0);
+  useEffect(() => {
+    if (!accountClient || !open) return;
+    let cancelled = false;
+    void accountClient.request("providers", z.array(providerSchema)).then(rows => {
+      if (!cancelled) setKeySaved(rows.some(row => row.provider === tempProvider && row.baseUrl === tempBaseUrl && row.keySaved));
+    }).catch(cause => { if (!cancelled && !accountClient.signal.aborted) setModelError(cause instanceof Error ? cause.message : "Could not load saved key status"); });
+    return () => { cancelled = true; };
+  }, [accountClient, open, tempProvider, tempBaseUrl]);
 
   useEffect(() => {
     if (open) {
@@ -354,7 +368,7 @@ export function ConfigurationDialog({
       isCloudTab ||
       !open ||
       !tempProvider ||
-      (needsApiKey && !tempApiKey.trim()) ||
+      (needsApiKey && !tempApiKey.trim() && !accountClient) ||
       (needsBaseUrl && !tempBaseUrl.trim())
     ) {
       setModels([]);
@@ -364,7 +378,7 @@ export function ConfigurationDialog({
     }
 
     let cancelled = false;
-    const mayUseCache = !tempApiKey.trim();
+    const mayUseCache = !tempApiKey.trim() && !accountClient;
     const loadModels = async () => {
       if (cancelled) return;
       if (mayUseCache) {
@@ -382,7 +396,12 @@ export function ConfigurationDialog({
 
       try {
         let fetchedModels: ModelOption[] = [];
-        if (tempProvider === "openai-compatible") {
+        if (accountClient) {
+          fetchedModels = await accountClient.request("discover", z.array(z.object({ id: z.string(), displayName: z.string().optional() })), "POST", {
+            provider: tempProvider, model: tempModel, baseUrl: tempBaseUrl,
+            ...(tempApiKey.trim() ? { apiKey: tempApiKey.trim() } : {}),
+          });
+        } else if (tempProvider === "openai-compatible") {
           fetchedModels = isPegaAiBaseUrl(tempBaseUrl)
             ? await fetchPegaAiModelOptions(tempBaseUrl, tempApiKey)
             : await fetchOpenAICompatibleModels(tempBaseUrl, tempApiKey);
@@ -420,17 +439,17 @@ export function ConfigurationDialog({
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [tempApiKey, tempBaseUrl, tempProvider, open, modelsCacheKey, isCloudTab]);
+  }, [tempApiKey, tempBaseUrl, tempProvider, open, modelsCacheKey, isCloudTab, accountClient]);
 
   const showBaseUrlField = providerSupportsBaseUrl(tempProvider);
   const apiKeyOptional = !providerRequiresApiKey(tempProvider, tempBaseUrl);
   const showModelSection =
     open &&
     (!providerRequiresApiKey(tempProvider, tempBaseUrl) ||
-      !!tempApiKey.trim()) &&
+      !!tempApiKey.trim() || !!accountClient) &&
     (!showBaseUrlField || !!tempBaseUrl.trim());
   const apiKeyLabel = apiKeyOptional ? "API Key (optional)" : "API Key";
-  const apiKeyPlaceholder = apiKeyOptional
+  const apiKeyPlaceholder = accountClient && keySaved ? "Leave empty to keep the saved key" : apiKeyOptional
     ? tempProvider === "ollama"
       ? "Leave empty for local Ollama"
       : "Enter your API key (optional)"
@@ -443,12 +462,13 @@ export function ConfigurationDialog({
     tempProvider === "openai-compatible"
       ? "Base URL of your OpenAI-compatible /v1 endpoint."
       : null;
-  const apiKeyHelp =
-    tempProvider === "ollama"
-      ? "Optional for local Ollama. Stored locally and never sent to our servers."
+  const apiKeyHelp = accountClient
+    ? `${keySaved ? "A key is saved for this provider. " : ""}Keys are encrypted in your account and used only by the server. Enter a new key to replace it; Clear Configuration removes it.`
+    : tempProvider === "ollama"
+      ? "Optional for local Ollama. Stored locally and never sent to the servers."
       : isPegaAiBaseUrl(tempBaseUrl)
-        ? "Your API key is stored in this browser and forwarded only to the configured PegaAI endpoint."
-        : "Your API key is stored locally and never sent to our servers.";
+        ? "Your API key is stored locally in this browser."
+        : "Your API key is stored locally and never sent to the servers.";
 
   const cloudModelsByProvider = managedCloudInfo
     ? managedCloudInfo.models.reduce<Record<string, CloudModel[]>>(
@@ -499,7 +519,7 @@ export function ConfigurationDialog({
         managedCloudInfo?.models.length === 0
       )
     : (providerRequiresApiKey(tempProvider, tempBaseUrl) &&
-        !tempApiKey.trim()) ||
+        !tempApiKey.trim() && !keySaved) ||
       (showBaseUrlField && !tempBaseUrl.trim()) ||
       !tempModel.trim() ||
       isLoadingModels ||
@@ -515,7 +535,7 @@ export function ConfigurationDialog({
           <DialogDescription>
             {managedCloudInfo
               ? "Pick a managed cloud model or configure your own provider."
-              : "Configure your LLM provider and API key to start chatting with the MCP server."}
+              : "Configure your OpenAI-compatible endpoint, model, and API key."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -586,7 +606,7 @@ export function ConfigurationDialog({
             ) : (
               <Select
                 value={tempProvider}
-                onValueChange={(v) => onProviderChange(v as ProviderName)}
+                onValueChange={(v) => { if (v === "openai-compatible") onProviderChange(v); }}
               >
                 <SelectTrigger
                   className="rounded-md"
@@ -600,42 +620,6 @@ export function ConfigurationDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="openai" label={getProviderLabel("openai")}>
-                    <div className="flex items-center gap-2">
-                      <ProviderIcon provider="openai" />
-                      <span>{getProviderLabel("openai")}</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem
-                    value="anthropic"
-                    label={getProviderLabel("anthropic")}
-                  >
-                    <div className="flex items-center gap-2">
-                      <ProviderIcon provider="anthropic" />
-                      <span>{getProviderLabel("anthropic")}</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="google" label={getProviderLabel("google")}>
-                    <div className="flex items-center gap-2">
-                      <ProviderIcon provider="google" />
-                      <span>{getProviderLabel("google")}</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="ollama" label={getProviderLabel("ollama")}>
-                    <div className="flex items-center gap-2">
-                      <ProviderIcon provider="ollama" />
-                      <span>{getProviderLabel("ollama")}</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem
-                    value="openrouter"
-                    label={getProviderLabel("openrouter")}
-                  >
-                    <div className="flex items-center gap-2">
-                      <ProviderIcon provider="openrouter" />
-                      <span>{getProviderLabel("openrouter")}</span>
-                    </div>
-                  </SelectItem>
                   <SelectItem
                     value="openai-compatible"
                     label={getProviderLabel("openai-compatible")}

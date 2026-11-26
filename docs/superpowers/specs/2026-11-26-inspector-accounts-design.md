@@ -2,11 +2,16 @@
 
 Approved by the user on 2026-11-26.
 
+Amended during implementation: Chat remains available to anonymous users.
+The provider picker offers only OpenAI Compatible; no built-in Manufact
+fallback or Manufact account requirement. Accounts add synchronized persistence,
+not permission to use Chat.
+
 ## Intent
 
 Restore the header Sign in button and provide an Inspector-styled sign-in
 page. Accounts allow users to retain their chats, API keys, and MCP server
-configurations. Anonymous inspection remains available; Chat requires login.
+configurations. Anonymous inspection and Chat remain available.
 
 ## Access and UI
 
@@ -14,8 +19,9 @@ configurations. Anonymous inspection remains available; Chat requires login.
   themes. Provide External and Admin sign-in tabs, including mobile headers.
 - Return to the prior Inspector destination after login. Replace Sign in with
   an account menu offering Sign out.
-- Gate Chat in the UI and provider APIs server-side. Inspector account
-  authentication is independent of MCP server OAuth.
+- Protect account persistence and the saved-key relay server-side. Anonymous
+  Chat uses local OpenAI-compatible settings.
+  Inspector account authentication is independent of MCP server OAuth.
 - Reuse chat-history controls for create/open/save/rename/delete.
 
 ## Authentication
@@ -52,8 +58,9 @@ configurations. Anonymous inspection remains available; Chat requires login.
 - Saved API keys are never returned to the browser. Show saved status and
   provide replacement/removal. Inject keys into provider requests server-side,
   including streaming and model discovery.
-- Preserve existing provider choices and PegaAI defaults. No provider key in
-  localStorage, bundles, diagnostic recordings, or exports.
+- Offer only OpenAI Compatible, retaining PegaAI defaults.
+  No signed-in provider key in localStorage, bundles, diagnostic
+  recordings, or exports; anonymous BYOK retains separate browser storage.
 - The existing browser MCP client may require account configuration
   credentials in authenticated memory; do not persist them in browser storage.
 - Do not include real secrets in this design, fixtures, or tracked examples.
@@ -81,7 +88,7 @@ encrypted secrets.
 ## Verification
 
 Cover admin/external/OTP login, rejected credentials and expiry, anonymous
-Chat blocking, cross-user isolation, encrypted storage, key non-disclosure,
+Chat availability, cross-user isolation, encrypted storage, key non-disclosure,
 chat rename/delete, configuration restoration, logout cleanup, and late-write
 isolation. Run focused unit and PostgreSQL integration tests, typecheck,
 build/provenance checks, and browser flows in both themes. Distinguish mocked

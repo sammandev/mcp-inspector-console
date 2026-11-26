@@ -1,3 +1,4 @@
+// Modified for the combined Inspector: use account-scoped history and server-managed provider settings.
 import type {
   CallToolResult,
   ContentBlock,
@@ -43,6 +44,9 @@ import { ChatInputArea } from "./chat/ChatInputArea";
 import type { ChatSkillSelection } from "./chat/SkillContextChips";
 import { ChatLandingForm } from "./chat/ChatLandingForm";
 import { ConfigurationDialog } from "./chat/ConfigurationDialog";
+import { useOptionalAccount } from "../../../../src/accounts/AccountProvider.js";
+import { accountResourceId } from "../../../../src/accounts/api.js";
+import { AccountChatStorageProvider } from "../../../../src/accounts/storage.js";
 import { ConfigureEmptyState } from "./chat/ConfigureEmptyState";
 import { MessageList } from "./chat/MessageList";
 import { ChatScrollToBottomButton } from "./chat/ChatScrollToBottomButton";
@@ -234,7 +238,8 @@ export function ChatTab({
 }: ChatTabProps) {
   const isMcpWidgetFullscreen = useMcpWidgetFullscreen();
   const { isEmbedded } = useInspector();
-  const localSystemPromptProvider = useLocalSystemPrompt(serverId);
+  const account = useOptionalAccount();
+  const localSystemPromptProvider = useLocalSystemPrompt(accountResourceId(account?.session?.id, serverId));
   const effectiveSystemPromptProvider =
     externalSystemPromptProvider ?? localSystemPromptProvider;
   const resolvedSystemPrompt = useMemo(
@@ -242,8 +247,10 @@ export function ChatTab({
     [effectiveSystemPromptProvider.prompt]
   );
   const localChatStorageRef = useRef(new LocalChatStorageProvider());
+  const accountChatStorage = useMemo(() => account?.client ? new AccountChatStorageProvider(account.client) : null, [account?.client]);
   const effectiveChatStorage =
     chatStorageProvider ??
+    accountChatStorage ??
     (!isEmbedded && enableChatHistory !== false
       ? localChatStorageRef.current
       : null);
@@ -262,7 +269,7 @@ export function ChatTab({
     startNewChat,
     persistSessionMessages,
   } = useChatSessions({
-    retryServerId: connection.id ?? connection.url,
+    retryServerId: accountResourceId(account?.session?.id, connection.id ?? connection.url),
     agentId: serverId,
     agentName: connection.displayName || connection.name || "MCP Server",
     storage: effectiveChatStorage,
@@ -499,8 +506,8 @@ export function ChatTab({
     [clientSideChat.showManagedChatNotice, serverSideChat.showManagedChatNotice]
   );
 
-  const handleSaveLLMConfig = useCallback(() => {
-    if (!saveLLMConfig()) return;
+  const handleSaveLLMConfig = useCallback(async () => {
+    if (!await saveLLMConfig()) return;
     setForceClientSide(true);
     clearManagedChatNotice();
   }, [saveLLMConfig, setForceClientSide, clearManagedChatNotice]);
@@ -1163,6 +1170,7 @@ export function ChatTab({
                 containerClassName="h-full border-0"
                 refetchKey={historyRefetchKey}
                 onCurrentChatDeleted={() => void handleNewChat()}
+                onChatDeleted={id => { chatSessions.findByPersistedChatId(id)?.runtime.abortController?.abort(); }}
               />
             </div>
           )}
@@ -1457,9 +1465,13 @@ export function ChatTab({
     [messages, formatMessagesAsMarkdown, serializeMessageContent]
   );
 
-  const handleClearConfig = useCallback(() => {
-    clearConfig();
-    void handleNewChat();
+  const handleClearConfig = useCallback(async () => {
+    try {
+      await clearConfig();
+      await handleNewChat();
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "Could not clear provider settings");
+    }
   }, [clearConfig, handleNewChat]);
 
   const handleQuickQuestionSelect = useCallback(

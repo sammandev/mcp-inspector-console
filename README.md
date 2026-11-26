@@ -113,7 +113,23 @@ MCP_INSPECTOR_ALLOWED_TARGETS=http://10.176.2.139:39064/mcp
 pnpm dev
 ```
 
-The Chat page defaults to an OpenAI-compatible PegaAI provider through the same-origin Inspector route `/mcp/inspector/api/pegaai/v1`. Enter the user's own AICC key in the chat configuration dialog; the key remains in browser storage and is forwarded only to the configured PegaAI endpoint. The local server proxies to `http://10.176.2.139:4714` by default. Override that server-side origin when required before starting the Inspector:
+Chat is available without signing in. The LLM Provider Configuration dialog
+offers only **OpenAI Compatible**: configure your endpoint, model, and API key.
+The initial configuration remains PegaAI through
+`/mcp/inspector/api/pegaai/v1`. There is no built-in Manufact fallback or
+Manufact account requirement. Previously selected built-in fallback settings
+are not restored. MCP tools execute in the browser.
+
+Anonymous settings use existing browser storage; signed-in provider keys are
+encrypted in PostgreSQL and injected by the account relay, never returned
+as saved keys to the browser.
+
+Chat History uses a shared row highlight for each conversation and its
+always-visible action button. The compact action menu offers Rename and
+Delete; deleting still requires confirmation.
+
+The local PegaAI proxy targets `http://10.176.2.139:4714` by default. Override
+that server-side origin when required before starting the Inspector:
 
 ```text
 MCP_INSPECTOR_PEGA_AI_URL=http://10.176.2.139:4714

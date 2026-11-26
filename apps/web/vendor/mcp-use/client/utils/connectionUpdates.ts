@@ -1,5 +1,6 @@
 // Modified for the combined Inspector: persist the extra transport and diagnostics settings.
 import { inspectorApi } from "@/client/utils/basePath";
+import { accountConnections } from "../../../../src/accounts/storage.js";
 import { isLocalhostServerUrl } from "@/client/utils/servers";
 import {
   LocalStorageProvider,
@@ -204,6 +205,13 @@ export function saveStoredConnectionConfig(
   id: string,
   config: EditableConnectionConfig
 ): void {
+  const accountStorage = accountConnections();
+  if (accountStorage) {
+    accountStorage.client.signal.throwIfAborted();
+    void accountStorage.setServer(id, { ...accountStorage.getServers()[id], ...config, displayName: config.name?.trim() || config.url })
+      .catch(() => console.error("Account connection configuration could not be saved"));
+    return;
+  }
   try {
     const stored = localStorage.getItem(INSPECTOR_CONNECTION_STORAGE_KEY);
     const allServers = stored
@@ -456,6 +464,8 @@ export function toEditableConnectionConfig(
 }
 
 export function getStoredConnectionConfig<T>(id: string): T | null {
+  const accountStorage = accountConnections();
+  if (accountStorage) return (accountStorage.getServers()[id] as T | undefined) ?? null;
   try {
     const stored = localStorage.getItem("mcp-inspector-connections");
     if (!stored) {

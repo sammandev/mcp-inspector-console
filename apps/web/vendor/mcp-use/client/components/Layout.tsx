@@ -55,6 +55,7 @@ import { RpcPanelResizeHandle, useRpcPanelWidth } from "../../../../src/features
 import { revealSection } from "../../../../src/features/revealSection.js";
 import { useInspectorDocumentTitle } from "../../../../src/features/documentTitle.js";
 import { LAYOUT_TABS } from "./layout/layoutTabs";
+import { accountConnections } from "../../../../src/accounts/storage.js";
 
 interface LayoutProps {
   children: ReactNode;
@@ -83,9 +84,13 @@ export function Layout({ children }: LayoutProps) {
 
   const updateConnectionConfig = useCallback(
     async (id: string, config: EditableConnectionConfig) => {
+      const accountStorage = accountConnections();
       try {
         await updateServer(id, toMcpServerConfig(config));
-        saveStoredConnectionConfig(id, config);
+        if (accountStorage) {
+          accountStorage.client.signal.throwIfAborted();
+          await accountStorage.setServer(id, { ...accountStorage.getServers()[id], ...config, displayName: config.name?.trim() || config.url });
+        } else saveStoredConnectionConfig(id, config);
       } catch (error) {
         console.error(`[Layout] Failed to update connection ${id}:`, error);
         throw error;

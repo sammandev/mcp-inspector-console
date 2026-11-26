@@ -4,8 +4,12 @@
 > for native execution, or superpowers:subagent-driven-development if selected
 > by the user. Steps use checkbox tracking.
 
-**Goal:** Restore sign-in and provide login-required Chat with secure,
+**Goal:** Restore sign-in and provide optional account synchronization with secure,
 PostgreSQL-backed per-account chats, provider keys, and MCP configurations.
+
+**User amendment:** Chat is available without login. Its provider picker offers
+only OpenAI Compatible. The built-in Manufact fallback is removed.
+Saved account data and the saved-key relay still require login.
 
 **Architecture:** Extend the existing Node Inspector middleware with an
 account API and authenticated provider relay. Reuse mcp-use chat and connection
@@ -19,13 +23,13 @@ PostgreSQL via `pg`, Node crypto authenticated encryption.
 
 ## Global Constraints
 
-- Anonymous inspection remains available; Chat requires login.
+- Anonymous inspection and Chat remain available; account data requires login.
 - PostgreSQL provisioning is user-run. No access to production hosts.
 - Preserve local-only hosting and unrelated worktree changes.
 - No real secrets in tracked files, browser persistence, diagnostics, or exports.
 - Saved API keys are never returned to the browser.
 - No new administrative management or permission screens.
-- Preserve provider choices, PegaAI defaults, and MCP OAuth behavior.
+- Offer only OpenAI Compatible; preserve PegaAI defaults and MCP OAuth behavior.
 
 ## Review Focus
 
@@ -124,8 +128,8 @@ server UI route matcher.
   visible failures, safe redirects, header states and anonymous Chat prompt.
 - [ ] Verify failures; implement with existing Button/Input/Tabs/card primitives
   and current theme provider. No new UI framework.
-- [ ] Gate standalone Chat at the rendering boundary, including kept-mounted
-  tabs; do not restore Manufact login as a substitute for Inspector accounts.
+- [ ] Keep standalone Chat available to anonymous users; do not restore
+  Manufact login as a substitute for Inspector accounts.
 - [ ] Reset account-owned providers/connections/chats on account changes;
   cancel pending requests and prevent old responses from updating new state.
 - [ ] Run focused UI tests in both themes and check mobile layout.
@@ -166,7 +170,7 @@ connection helper integration and diagnostic/export redaction as required.
 web test selectors, build-secret checks and vendor manifest/provenance.
 
 - [ ] Run database-backed browser scenarios for admin login, mocked external
-  token2/OTP, anonymous Chat blocking, chat rename/delete, key controls, logout
+  token2/OTP, anonymous Chat availability, chat rename/delete, key controls, logout
   during streaming, and two-account configuration/history isolation.
 - [ ] Verify persistence after restarting the test server without clearing its
   test database; verify light/dark and mobile sign-in behavior.

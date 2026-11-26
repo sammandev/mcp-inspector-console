@@ -1,4 +1,7 @@
+// Modified for the combined Inspector: cancel account-owned turns when the account session ends.
 import { MCPChatMessageEvent, captureInspectorEvent } from "@/client/telemetry";
+import { useOptionalAccount } from "../../../../../src/accounts/AccountProvider.js";
+import { accountResourceId } from "../../../../../src/accounts/api.js";
 import {
   MCPAgent,
   providerConfigFromOptions,
@@ -119,7 +122,9 @@ export function useChatMessagesClientSide({
   skills = [],
   maxSteps,
 }: UseChatMessagesClientSideProps) {
-  const retryServerId = connection.id ?? connection.url;
+  const account = useOptionalAccount();
+  const accountSignal = account?.workspaceSignal ?? account?.client?.signal;
+  const retryServerId = accountResourceId(account?.session?.id, connection.id ?? connection.url);
   const privateStore = useChatSessionStore();
   const store = sessionStore ?? privateStore;
   const [privateSessionId] = useState(createChatSessionId);
@@ -230,6 +235,9 @@ export function useChatMessagesClientSide({
       updateSession({ isLoading: true, attachments: [] });
 
       runtime.abortController = new AbortController();
+      const abortForAccount = () => runtime.abortController?.abort();
+      accountSignal?.addEventListener("abort", abortForAccount, { once: true });
+      if (accountSignal?.aborted) abortForAccount();
       const startTime = Date.now();
       let toolCallsCount = 0;
       const assistantMessageId = `assistant-${Date.now()}`;
@@ -674,6 +682,7 @@ export function useChatMessagesClientSide({
           throw new Error(errorDetail);
         }
       } finally {
+        accountSignal?.removeEventListener("abort", abortForAccount);
         updateSession({ isLoading: false });
         runtime.abortController = null;
         runtime.sendInProgress = false;
@@ -681,6 +690,7 @@ export function useChatMessagesClientSide({
     },
     [
       activeSessionId,
+      accountSignal,
       connection,
       llmConfig,
       isConnected,

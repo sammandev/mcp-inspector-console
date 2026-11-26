@@ -1,3 +1,4 @@
+// Modified for the combined Inspector: wire rename/delete actions and display history load errors.
 import { cn } from "@/client/lib/utils";
 import { ScrollArea } from "@/client/components/ui/scroll-area";
 import { Sheet, SheetContent } from "@/client/components/ui/sheet";
@@ -31,6 +32,7 @@ interface ChatHistoryPanelProps {
   onCurrentChatDeleted?: () => void;
   onDeleteSuccess?: () => void;
   onDeleteError?: (error: unknown) => void;
+  onChatDeleted?: (chatId: string) => void;
 }
 
 export function ChatHistoryPanel({
@@ -49,6 +51,7 @@ export function ChatHistoryPanel({
   onCurrentChatDeleted,
   onDeleteSuccess,
   onDeleteError,
+  onChatDeleted,
 }: ChatHistoryPanelProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -59,6 +62,8 @@ export function ChatHistoryPanel({
     hasNextPage,
     loadMore,
     deleteChat,
+    refetch,
+    error,
   } = useChatHistory({
     provider,
     enabled: open,
@@ -92,6 +97,7 @@ export function ChatHistoryPanel({
   const handleDelete = async (chatId: string) => {
     try {
       await deleteChat(chatId);
+      onChatDeleted?.(chatId);
       onDeleteSuccess?.();
       if (chatId === currentChatId) {
         onCurrentChatDeleted?.();
@@ -99,6 +105,7 @@ export function ChatHistoryPanel({
     } catch (error) {
       console.error("Failed to delete chat:", error);
       onDeleteError?.(error);
+      throw error;
     }
   };
 
@@ -116,6 +123,7 @@ export function ChatHistoryPanel({
     <ChatList
       chats={chatSessions}
       onDelete={handleDelete}
+      onRename={async (id, title) => { await provider.updateChat(id, { title }); refetch(); }}
       compact={variant === "inline"}
       hideAgentName={!!agentDisplayNameFallback}
       isLoading={isLoading && chatsWithAgents.length === 0}
@@ -142,6 +150,7 @@ export function ChatHistoryPanel({
         )}
       >
         {list}
+        {error && <div role="alert" className="p-4 text-sm text-destructive">{error.message}<button type="button" className="ml-2 underline" onClick={refetch}>Retry</button></div>}
         {hasNextPage && (
           <div
             ref={loadMoreRef}

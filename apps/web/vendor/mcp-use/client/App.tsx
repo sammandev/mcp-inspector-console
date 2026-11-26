@@ -13,7 +13,11 @@ import {
   SKILLS_EXTENSION_ID,
   type McpServer,
 } from "@mcp-use/client/react";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AccountProvider, useOptionalAccount } from "../../../src/accounts/AccountProvider.js";
+import { accountOAuthPrefix } from "../../../src/accounts/api.js";
+import { SignInPage } from "../../../src/accounts/SignInPage.js";
+import { AccountConnectionStorageProvider, activateAccountConnections } from "../../../src/accounts/storage.js";
 import { Route, BrowserRouter as Router, Routes } from "react-router";
 import { toast } from "sonner";
 import { InspectorProvider, useInspector } from "./context/InspectorContext";
@@ -53,6 +57,23 @@ function InspectorTabSync({
  */
 function App() {
   const activeTabRef = useRef<string>("tools");
+  const account = useOptionalAccount();
+  const [accountStorage, setAccountStorage] = useState<AccountConnectionStorageProvider | null>(null);
+  const currentAccountStorage = accountStorage?.client === account?.client ? accountStorage : null;
+  const [storageError, setStorageError] = useState<string | null>(null);
+  useEffect(() => {
+    setAccountStorage(null); setStorageError(null);
+    const storage = account?.client ? new AccountConnectionStorageProvider(account.client) : null;
+    activateAccountConnections(storage);
+    if (storage) {
+      void storage.load().then(() => setAccountStorage(storage)).catch(cause => {
+        if (!storage.client.signal.aborted) setStorageError(cause instanceof Error ? cause.message : "Could not load account connections");
+      });
+    }
+    const onSaveError = (event: Event) => toast.error((event as CustomEvent<string>).detail);
+    window.addEventListener("inspector-account-save-error", onSaveError);
+    return () => { activateAccountConnections(null); window.removeEventListener("inspector-account-save-error", onSaveError); };
+  }, [account?.client]);
 
   // Check if embedded mode is active from URL params
   const urlParams = new URLSearchParams(window.location.search);
@@ -68,10 +89,10 @@ function App() {
   // Create storage provider (only in non-embedded mode)
   const storageProvider = useMemo(
     () =>
-      isEmbedded
+      account?.session ? currentAccountStorage ?? undefined : isEmbedded
         ? undefined
         : new InspectorConnectionStorageProvider("mcp-inspector-connections"),
-    [isEmbedded]
+    [isEmbedded, account?.session, currentAccountStorage]
   );
 
   // Read the proxy path injected by the inspector server. Missing injection
@@ -116,7 +137,7 @@ function App() {
   // connections. Background reconnects may legitimately refresh their own
   // OAuth state, but the callback leg must have exclusive access to the
   // verifier and discovery record created for this authorization request.
-  if (isOAuthCallback) {
+  if (isOAuthCallback && !account?.loading) {
     return (
       <ThemeProvider defaultTheme="dark" forcedTheme={forcedTheme || undefined}>
         <ShapeProvider defaultShape="pill">
@@ -126,12 +147,18 @@ function App() {
       </ThemeProvider>
     );
   }
+  if (account?.loading || account?.session && !currentAccountStorage) {
+    return <div className="flex min-h-screen items-center justify-center bg-background p-8 text-foreground">
+      {storageError ? <div role="alert" className="max-w-md space-y-4"><p>{storageError}</p><button onClick={() => window.location.reload()}>Retry</button><button className="ml-4" onClick={() => void account.logout().catch(cause => toast.error(cause instanceof Error ? cause.message : "Sign out failed"))}>Sign out</button></div> : <p>Loading your workspace...</p>}
+    </div>;
+  }
 
   return (
     <ThemeProvider defaultTheme="dark" forcedTheme={forcedTheme || undefined}>
       <ShapeProvider defaultShape="pill">
         <WidgetDebugProvider>
           <McpClientProvider
+            key={account?.session?.id ?? "anonymous"}
             storageProvider={storageProvider}
             enableRpcLogging={true}
             defaultCallbackUrl={`${window.location.origin}${inspectorBase}/oauth/callback`}
@@ -143,6 +170,7 @@ function App() {
               fetch: recordingFetch,
               preventAutoAuth: true,
               useRedirectFlow: true,
+              storageKeyPrefix: accountOAuthPrefix(account?.session?.id),
               wrapTransport: wrapTransportForLegacySampling,
             }}
             clientInfo={{
@@ -294,6 +322,7 @@ function App() {
                     element={<ManufactOAuthCallback />}
                   />
                   <Route path="/preview/:view" element={<ViewPreview />} />
+                  <Route path="/sign-in" element={<SignInPage />} />
                   <Route
                     path="/"
                     element={
@@ -313,4 +342,7 @@ function App() {
   );
 }
 
-export default App;
+export default function InspectorApp() {
+  const embedded = new URLSearchParams(window.location.search).get("embedded") === "true";
+  return embedded ? <App /> : <AccountProvider><App /></AccountProvider>;
+}
