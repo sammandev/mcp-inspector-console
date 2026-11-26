@@ -199,6 +199,11 @@ built assets together with the mounted Inspector locally, run:
 pnpm --filter @mcp-inspector-console/web exec vite preview --host 127.0.0.1
 ```
 
-Vite preview is for local verification, not production deployment.
+Plain Vite preview is for local verification. The shared Ubuntu deployment
+runs the same preview server inside hardened blue-green containers behind a
+TLS Nginx edge on port `7000`; see [deploy/README.md](deploy/README.md). Setting
+`MCP_INSPECTOR_PUBLIC_ORIGINS` (comma-separated HTTPS origins) lets the
+proxied browser origin through the loopback guard and disables the stdio
+relay, because LAN users must not start processes on the server.
 
 `pnpm verify:phase-0` runs unit and command-contract tests, recursive type checking, provenance verification, production builds, and Playwright browser smoke tests in that order. The build checks emitted web assets for the server-only gateway secret. Playwright starts an isolated stack through the same runner on gateway port `3101` and web port `4273`, then stops it.

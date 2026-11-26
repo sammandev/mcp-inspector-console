@@ -1,0 +1,88 @@
+name: mcp-inspector-console
+
+x-app: &app
+  image: ${APP_IMAGE:-mcp-inspector-console:bootstrap}
+  labels:
+    com.mcp-inspector-console.project: mcp-inspector-console
+  network_mode: host
+  env_file: .env
+  environment:
+    NODE_ENV: production
+    NODE_OPTIONS: --max-old-space-size=512
+  user: "10001:10001"
+  read_only: true
+  tmpfs:
+    - /tmp:size=64m,mode=1777,noexec,nosuid
+    # Vite writes its bundled config here at startup.
+    - /app/apps/web/node_modules/.vite-temp:size=16m,mode=1777,noexec,nosuid
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 128
+  mem_limit: 768m
+  cpus: 1.0
+  restart: unless-stopped
+  stop_grace_period: 30s
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  app-blue:
+    <<: *app
+    container_name: mcp-inspector-blue
+    profiles: [blue]
+    command: [--port, "27001"]
+    healthcheck:
+      test: [CMD, wget, -q, -T, "5", -O, /dev/null, "http://127.0.0.1:27001/mcp/inspector"]
+      interval: 5s
+      timeout: 6s
+      start_period: 30s
+      retries: 6
+
+  app-green:
+    <<: *app
+    container_name: mcp-inspector-green
+    profiles: [green]
+    command: [--port, "27002"]
+    healthcheck:
+      test: [CMD, wget, -q, -T, "5", -O, /dev/null, "http://127.0.0.1:27002/mcp/inspector"]
+      interval: 5s
+      timeout: 6s
+      start_period: 30s
+      retries: 6
+
+  edge:
+    image: nginx:alpine
+    container_name: mcp-inspector-edge
+    labels:
+      com.mcp-inspector-console.project: mcp-inspector-console
+    network_mode: host
+    user: "101:101"
+    entrypoint: [nginx]
+    command: [-g, "daemon off;"]
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777,noexec,nosuid
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 64m
+    cpus: 0.5
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./state/upstreams:/etc/nginx/upstreams:ro
+      - ./state/assets:/srv/assets:ro
+      - ./tls:/etc/nginx/tls:ro
+    healthcheck:
+      test: [CMD, wget, -q, -T, "5", --no-check-certificate, -O, /dev/null, "https://127.0.0.1:7000/edge-health"]
+      interval: 10s
+      timeout: 6s
+      retries: 3

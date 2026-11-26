@@ -16,7 +16,37 @@ const INSPECTOR_PATH = "/mcp/inspector";
 const LOOPBACK_ADDRESSES = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
-function requestOrigin(request: IncomingMessage, server: ViteDevServer | PreviewServer): string | undefined {
+const LOCAL_RELAY_PATH = /^\/mcp\/inspector\/api\/local(?:\/|$)/;
+
+export type InspectorRequestOrigin = { origin: string; remote: boolean };
+
+export function parsePublicOrigins(value: string | undefined): ReadonlySet<string> {
+  const origins = new Set<string>();
+  for (const rawOrigin of (value ?? "").split(",").map((item) => item.trim()).filter(Boolean)) {
+    let url: URL;
+    try {
+      url = new URL(rawOrigin);
+    } catch {
+      throw new Error(`MCP_INSPECTOR_PUBLIC_ORIGINS contains an invalid URL: ${rawOrigin}`);
+    }
+    if (
+      !["http:", "https:"].includes(url.protocol) || LOOPBACK_HOSTS.has(url.hostname) ||
+      url.username || url.password || url.pathname !== "/" || url.search || url.hash
+    ) {
+      throw new Error(`MCP_INSPECTOR_PUBLIC_ORIGINS must contain non-loopback HTTP(S) origins without credentials or paths: ${rawOrigin}`);
+    }
+    origins.add(url.origin);
+  }
+  return origins;
+}
+
+// Public origins are only honored on loopback sockets, i.e. from the co-located
+// edge proxy, which overwrites X-Forwarded-Proto with its own scheme.
+export function requestOrigin(
+  request: IncomingMessage,
+  serverPort: number | undefined,
+  publicOrigins: ReadonlySet<string> = new Set(),
+): InspectorRequestOrigin | undefined {
   if (!request.socket.remoteAddress || !LOOPBACK_ADDRESSES.has(request.socket.remoteAddress)) return;
   if (!request.headers.host) return;
 
@@ -26,13 +56,18 @@ function requestOrigin(request: IncomingMessage, server: ViteDevServer | Preview
   } catch {
     return;
   }
-  const address = server.httpServer?.address();
-  if (
-    !LOOPBACK_HOSTS.has(url.hostname) ||
-    url.username || url.password || url.pathname !== "/" || url.search || url.hash ||
-    !address || typeof address === "string" || Number(url.port || 80) !== address.port
-  ) return;
-  return url.origin;
+  if (url.username || url.password || url.pathname !== "/" || url.search || url.hash) return;
+  if (publicOrigins.size > 0 && !LOOPBACK_HOSTS.has(url.hostname)) {
+    const scheme = request.headers["x-forwarded-proto"] === "https" ? "https" : "http";
+    const origin = `${scheme}://${url.host}`;
+    return publicOrigins.has(origin) ? { origin, remote: true } : undefined;
+  }
+  if (!LOOPBACK_HOSTS.has(url.hostname) || serverPort === undefined || Number(url.port || 80) !== serverPort) return;
+  return { origin: url.origin, remote: false };
+}
+
+export function remoteLocalRelayRequest(pathname: string, origin: InspectorRequestOrigin): boolean {
+  return origin.remote && LOCAL_RELAY_PATH.test(pathname);
 }
 
 function isSameOriginApiRequest(request: IncomingMessage, origin: string): boolean {
@@ -313,6 +348,7 @@ export function mcpUseInspector(): Plugin {
   const localRelay = createLocalRelay();
   const approvedMcpTargets = parseApprovedMcpTargets(process.env.MCP_INSPECTOR_ALLOWED_TARGETS);
   const pegaAiProxyUrl = parsePegaAiProxyUrl(process.env.MCP_INSPECTOR_PEGA_AI_URL);
+  const publicOrigins = parsePublicOrigins(process.env.MCP_INSPECTOR_PUBLIC_ORIGINS);
   let accounts: AccountService | undefined;
   try {
     const config = readAccountConfig(process.env);
@@ -332,7 +368,8 @@ export function mcpUseInspector(): Plugin {
   const inspector = mountInspector({
     basePath: "/mcp",
     autoConnectUrl: null,
-    oauthProxyAllowLoopback: true,
+    // On a shared deployment, loopback is the server itself rather than the user's machine.
+    oauthProxyAllowLoopback: publicOrigins.size === 0,
   });
   const listener = getRequestListener(async (request) => {
     if (new URL(request.url).pathname.startsWith(`${INSPECTOR_PATH}/api/`)) {
@@ -343,7 +380,7 @@ export function mcpUseInspector(): Plugin {
         const relayed = await relayProviderRequest(bounded, accounts, approvedProviderOrigins, pegaAiProxyUrl);
         return relayed ?? (await accounts.handle(bounded)) ?? new Response("Not found", { status: 404 });
       }
-      if (/^\/mcp\/inspector\/api\/local(?:\/|$)/.test(new URL(request.url).pathname)) {
+      if (LOCAL_RELAY_PATH.test(new URL(request.url).pathname)) {
         return localRelay.handle(bounded);
       }
       const pegaAiProxyResponse = await proxyPegaAiRequest(bounded, pegaAiProxyUrl);
@@ -378,13 +415,19 @@ export function mcpUseInspector(): Plugin {
         return;
       }
 
-      const origin = requestOrigin(request, server);
+      const address = server.httpServer?.address();
+      const origin = requestOrigin(request, address && typeof address !== "string" ? address.port : undefined, publicOrigins);
       if (!origin || (
         url.pathname.startsWith(`${INSPECTOR_PATH}/api/`) &&
-        !isSameOriginApiRequest(request, origin)
+        !isSameOriginApiRequest(request, origin.origin)
       )) {
         response.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
         response.end("Inspector requests must come from this local origin");
+        return;
+      }
+      if (remoteLocalRelayRequest(url.pathname, origin)) {
+        response.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
+        response.end(JSON.stringify({ error: "Local stdio servers are unavailable on a shared deployment" }));
         return;
       }
       const uiRoute = /^\/mcp\/inspector(?:\/(?:sign-in|oauth\/callback|auth\/callback|preview\/[^/]+))?\/?$/.test(url.pathname);
@@ -392,12 +435,14 @@ export function mcpUseInspector(): Plugin {
         const preview = !("transformIndexHtml" in server);
         const path = fileURLToPath(new URL(preview ? "./dist/index.html" : "./index.html", import.meta.url));
         void readFile(path, "utf8").then(async (html) => {
-          const output = inspectorDocument(preview ? html : await server.transformIndexHtml(INSPECTOR_PATH, html), origin);
+          const output = inspectorDocument(preview ? html : await server.transformIndexHtml(INSPECTOR_PATH, html), origin.origin);
           response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
           response.end(request.method === "HEAD" ? undefined : output);
         }).catch(next);
         return;
       }
+      // An absolute URL makes the request handlers see the public scheme and host.
+      if (origin.remote) request.url = `${origin.origin}${request.url ?? "/"}`;
       void listener(request, response).catch(next);
     });
   }

@@ -1,4 +1,5 @@
 import { loadEnvFile } from "node:process";
+import { existsSync } from "node:fs";
 import { readFile, appendFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -6,7 +7,7 @@ import pg from "pg";
 import { readDatabaseUrl } from "./database-url.ts";
 
 const envPath = fileURLToPath(new URL("../../../.env", import.meta.url));
-loadEnvFile(envPath);
+if (existsSync(envPath)) loadEnvFile(envPath);
 if (process.argv.includes("--generate-key")) {
   if (process.env.MCP_INSPECTOR_ENCRYPTION_KEY) throw new Error("Encryption key already exists; do not overwrite it");
   await appendFile(envPath, `\nMCP_INSPECTOR_ENCRYPTION_KEY=${randomBytes(32).toString("base64")}\n`);

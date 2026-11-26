@@ -1,0 +1,3 @@
+state/
+tls/
+!.env.proxy.example

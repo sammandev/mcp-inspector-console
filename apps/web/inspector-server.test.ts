@@ -71,6 +71,46 @@ describe("approved MCP proxy targets", () => {
   });
 });
 
+describe("shared deployment origins", () => {
+  const publicOrigin = "https://10.176.2.139:7000";
+  const incoming = (host: string, remoteAddress = "127.0.0.1", headers: IncomingHttpHeaders = {}) =>
+    ({ socket: { remoteAddress }, headers: { host, ...headers } }) as unknown as IncomingMessage;
+
+  it("accepts the configured public origin only from the loopback edge with its forwarded scheme", async () => {
+    const { parsePublicOrigins, requestOrigin } = await import("./inspector-server.js");
+    const origins = parsePublicOrigins(` ${publicOrigin}/ `);
+
+    expect(requestOrigin(incoming("10.176.2.139:7000", "127.0.0.1", { "x-forwarded-proto": "https" }), 27001, origins))
+      .toEqual({ origin: publicOrigin, remote: true });
+    expect(requestOrigin(incoming("10.176.2.139:7000", "10.0.0.5", { "x-forwarded-proto": "https" }), 27001, origins))
+      .toBeUndefined();
+    expect(requestOrigin(incoming("10.176.2.139:7000"), 27001, origins)).toBeUndefined();
+    expect(requestOrigin(incoming("attacker.example", "127.0.0.1", { "x-forwarded-proto": "https" }), 27001, origins))
+      .toBeUndefined();
+  });
+
+  it("keeps loopback-only behavior and rejects non-origin public settings", async () => {
+    const { parsePublicOrigins, requestOrigin } = await import("./inspector-server.js");
+
+    expect(requestOrigin(incoming("127.0.0.1:27001"), 27001, parsePublicOrigins(publicOrigin)))
+      .toEqual({ origin: "http://127.0.0.1:27001", remote: false });
+    expect(requestOrigin(incoming("127.0.0.1:7000"), 27001)).toBeUndefined();
+    expect(requestOrigin(incoming("10.176.2.139:7000"), 27001)).toBeUndefined();
+    for (const value of ["http://localhost:7000", "https://10.176.2.139:7000/path", "https://user:pw@host", "ftp://host"]) {
+      expect(() => parsePublicOrigins(value)).toThrow(/MCP_INSPECTOR_PUBLIC_ORIGINS/);
+    }
+  });
+
+  it("refuses the stdio relay only for shared-deployment requests", async () => {
+    const { remoteLocalRelayRequest } = await import("./inspector-server.js");
+
+    expect(remoteLocalRelayRequest("/mcp/inspector/api/local/sessions", { origin: publicOrigin, remote: true })).toBe(true);
+    expect(remoteLocalRelayRequest("/mcp/inspector/api/local", { origin: publicOrigin, remote: true })).toBe(true);
+    expect(remoteLocalRelayRequest("/mcp/inspector/api/proxy", { origin: publicOrigin, remote: true })).toBe(false);
+    expect(remoteLocalRelayRequest("/mcp/inspector/api/local", { origin: "http://127.0.0.1:4173", remote: false })).toBe(false);
+  });
+});
+
 type ProxyPegaAiRequest = (
   request: Request,
   upstreamBaseUrl: URL,

@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import type { IncomingHttpHeaders } from "node:http";
 import { fileURLToPath } from "node:url";
-import { mcpUseInspector } from "./inspector-server.js";
+import { mcpUseInspector, parsePublicOrigins } from "./inspector-server.js";
 
 export function gatewayProxyRequestPolicy(headers: IncomingHttpHeaders, webOrigin: string): boolean {
   const fetchSite = headers["sec-fetch-site"];
@@ -47,6 +47,9 @@ export default defineConfig({
   },
   optimizeDeps: {
     entries: ["index.html", "src/inspector-entry.tsx", "src/workspace-entry.tsx"],
+  },
+  preview: {
+    allowedHosts: [...parsePublicOrigins(process.env.MCP_INSPECTOR_PUBLIC_ORIGINS)].map((origin) => new URL(origin).hostname),
   },
   server: {
     warmup: { clientFiles: ["./src/inspector-entry.tsx", "./src/workspace-entry.tsx"] },
