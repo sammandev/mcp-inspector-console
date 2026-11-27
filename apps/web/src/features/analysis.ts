@@ -1,4 +1,5 @@
-import Ajv from "ajv";
+import Ajv, { type ValidateFunction } from "ajv";
+import Ajv2020 from "ajv/dist/2020.js";
 
 export type Finding = { severity: "error" | "warning" | "info"; path: string; issue: string; fix: string };
 type Schema = Record<string, unknown>;
@@ -62,7 +63,14 @@ export function validateToolOutput(tool: ToolLike, result: ResultLike): { valid:
     return { valid: true, findings: result.structuredContent === undefined ? [] : ["structuredContent was returned but the tool declares no outputSchema"] };
   }
   if (result.structuredContent === undefined) return { valid: false, findings: ["The tool declares an outputSchema but returned no structuredContent"] };
-  const validate = new Ajv({ allErrors: true, strict: false }).compile(tool.outputSchema);
+  let validate: ValidateFunction;
+  try {
+    const Validator = typeof tool.outputSchema.$schema === "string" && /^https:\/\/json-schema\.org\/draft\/2020-12\/schema#?$/.test(tool.outputSchema.$schema)
+      ? Ajv2020 : Ajv;
+    validate = new Validator({ allErrors: true, strict: false }).compile(tool.outputSchema);
+  } catch (error) {
+    return { valid: false, findings: [`Cannot validate output schema for tool "${tool.name}": ${error instanceof Error ? error.message : String(error)}`] };
+  }
   if (validate(result.structuredContent)) return { valid: true, findings: [] };
   return { valid: false, findings: (validate.errors ?? []).map((error) => `${error.instancePath || "/"} ${error.message ?? "is invalid"}`) };
 }

@@ -1114,7 +1114,15 @@ test("native Tools keeps run history and conformance beside tool execution", asy
         {
           name: "audit-script",
           inputSchema: { type: "object", properties: { path: { type: "string", nullable: true, description: "Script path" } }, required: ["path"] },
-          outputSchema: { type: "object", properties: { findings: { type: "integer" }, path: { type: "string" } }, required: ["findings", "path"] },
+          outputSchema: {
+            $schema: "https://json-schema.org/draft/2020-12/schema",
+            type: "object",
+            anyOf: [{ $ref: "#/$defs/AuditResult" }, { $ref: "#/$defs/Error" }],
+            $defs: {
+              AuditResult: { type: "object", properties: { findings: { type: "integer" }, path: { type: "string" } }, required: ["findings", "path"] },
+              Error: { type: "object", properties: { error: { type: "object" } }, required: ["error"] },
+            },
+          },
         },
         { name: "app-tool", inputSchema: { type: "object", properties: {} }, _meta: { ui: { resourceUri: "ui://audit/app" } } },
         { name: "invalid-app", inputSchema: { type: "object", properties: {} }, _meta: { ui: { resourceUri: " " } } },

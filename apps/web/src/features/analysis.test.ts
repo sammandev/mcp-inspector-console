@@ -46,6 +46,67 @@ describe("tool output validation", () => {
     expect(validateToolOutput(tool, { content: [], structuredContent: { n: "1" } }).valid).toBe(false);
   });
 
+  it.each(["https://json-schema.org/draft/2020-12/schema", "https://json-schema.org/draft/2020-12/schema#"])(
+    "validates referenced MCP output envelopes declared with %s",
+    ($schema) => {
+      const auditTool = {
+        name: "catalog_info",
+        outputSchema: {
+          $schema,
+          type: "object",
+          anyOf: [{ $ref: "#/$defs/Success" }, { $ref: "#/$defs/Error" }],
+          $defs: {
+            Success: { type: "object", properties: { n: { type: "integer" } }, required: ["n"] },
+            Error: { type: "object", properties: { error: { type: "string" } }, required: ["error"] },
+          },
+        },
+      };
+      expect(validateToolOutput(auditTool, { structuredContent: { n: 1 } })).toEqual({ valid: true, findings: [] });
+      expect(validateToolOutput(auditTool, { structuredContent: { n: "1" } })).toMatchObject({
+        valid: false, findings: expect.arrayContaining([expect.stringMatching(/\/n.*integer/)]),
+      });
+    },
+  );
+
+  it("enforces draft-2020-12 tuple constraints instead of ignoring newer keywords", () => {
+    const tupleTool = {
+      name: "tuple",
+      outputSchema: {
+        $schema: "https://json-schema.org/draft/2020-12/schema",
+        type: "object",
+        properties: { values: { type: "array", prefixItems: [{ type: "integer" }], items: false } },
+        required: ["values"],
+      },
+    };
+    expect(validateToolOutput(tupleTool, { structuredContent: { values: [1] } }).valid).toBe(true);
+    expect(validateToolOutput(tupleTool, { structuredContent: { values: ["1"] } }).valid).toBe(false);
+    expect(validateToolOutput(tupleTool, { structuredContent: { values: [1, 2] } }).valid).toBe(false);
+  });
+
+  it("preserves explicitly declared draft-07 tuple validation", () => {
+    const tupleTool = {
+      name: "legacy",
+      outputSchema: {
+        $schema: "http://json-schema.org/draft-07/schema#",
+        type: "object",
+        properties: { values: { type: "array", items: [{ type: "integer" }], additionalItems: false } },
+      },
+    };
+    expect(validateToolOutput(tupleTool, { structuredContent: { values: [1] } }).valid).toBe(true);
+    expect(validateToolOutput(tupleTool, { structuredContent: { values: ["1"] } }).valid).toBe(false);
+    expect(validateToolOutput(tupleTool, { structuredContent: { values: [1, 2] } }).valid).toBe(false);
+  });
+
+  it.each([
+    { type: "object", required: "n" },
+    { type: "object", $ref: "#/$defs/Missing" },
+    { type: "object", $schema: "https://example.com/unsupported-schema" },
+  ])("reports uncompileable output schemas as findings rather than throwing: %j", (outputSchema) => {
+    expect(validateToolOutput({ name: "broken", outputSchema }, { structuredContent: {} })).toMatchObject({
+      valid: false, findings: [expect.stringMatching(/output schema.*:/i)],
+    });
+  });
+
   it("requires structured content when an output schema is declared", () => {
     expect(validateToolOutput(tool, { content: [] })).toMatchObject({ valid: false, findings: [expect.stringMatching(/structuredContent/)] });
   });

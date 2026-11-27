@@ -52,6 +52,10 @@ Light/Dark theme toggle (dark by default). "Add to Client" and the Command Palet
   server-management surface.
 - These workflows are reimplemented with the MCP SDK on the selected mcp-use
   connection; no Official Inspector code is copied.
+- Tool output validation uses draft-2020-12 semantics when declared by
+  `outputSchema.$schema`, retaining draft-07 validation for legacy or
+  undeclared schemas. Unsupported dialects, malformed schemas, and unresolved
+  references appear as validation findings rather than crashing the Tools UI.
 - **Not reimplemented:** Official transport-level options that the mcp-use
   connector does not expose: a cookie jar, suppressing the notification
   stream, enterprise IdP/step-up authorization, OAuth endpoint overrides,
